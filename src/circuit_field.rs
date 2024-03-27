@@ -101,6 +101,16 @@ impl Add for CircuitFieldElement {
     }
 }
 
+impl<'a, 'b> Add<&'b CircuitFieldElement> for &'a CircuitFieldElement {
+    type Output = CircuitFieldElement;
+
+    fn add(self, rhs: &'b CircuitFieldElement) -> Self::Output {
+        assert_eq!(self.field.0, rhs.field.0, "Fields must be the same for addition");
+        let ans = (self.value + rhs.value) % self.field.0;
+        CircuitFieldElement::new(ans, self.field.clone())
+    }
+}
+
 impl AddAssign for CircuitFieldElement {
     fn add_assign(&mut self, rhs: Self) {
         // let result = (self.value + rhs.value) % self.field.0;
@@ -118,12 +128,32 @@ impl Neg for CircuitFieldElement {
     }
 }
 
+impl<'a> Neg for &'a CircuitFieldElement {
+    type Output = CircuitFieldElement;
+
+    fn neg(self) -> Self::Output {
+        let result = (self.field.0 - self.value) % self.field.0;
+        CircuitFieldElement::new(result, self.field.clone())
+    }
+}
+
+
 impl Mul for CircuitFieldElement {
     type Output = CircuitFieldElement;
 
     fn mul(self, rhs: Self) -> Self::Output {
         let result = (self.clone().value * rhs.value) % self.clone().field.0;
         CircuitFieldElement::new(result, self.field)
+    }
+}
+
+impl<'a, 'b> Mul<&'b CircuitFieldElement> for &'a CircuitFieldElement {
+    type Output = CircuitFieldElement;
+
+    fn mul(self, rhs: &'b CircuitFieldElement) -> Self::Output {
+        assert_eq!(self.field.0, rhs.field.0, "Fields must be the same for multiplication");
+        let result = (self.value * rhs.value) % self.field.0;
+        CircuitFieldElement::new(result, self.field.clone())
     }
 }
 

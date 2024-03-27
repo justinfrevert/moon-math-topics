@@ -1,14 +1,11 @@
 use crate::circuit_field::{CicuitFieldInfo, NewValue};
 use crate::circuit_field::{FieldElementOne, FieldElementZero};
-use crate::r1cs::R1CS;
+use crate::r1cs::{UninitializedR1CS, R1CS};
 use core::fmt::Debug;
 use std::{
     collections::HashMap,
     ops::{Add, Mul},
 };
-
-const CONSTANTS_INDEX: usize = 0;
-const OUT_INDEX: usize = 1;
 
 #[derive(Clone, Debug)]
 pub struct Constant<F>(F);
@@ -107,26 +104,15 @@ impl<
         // A value representing zero, contextually
         let zero_value = self.gates[0].clone().value.unwrap().zero();
         let one_value = self.gates[0].clone().value.unwrap().one();
-
         let r1cs_length = self.gates.len() + 1;
-        let mut gate = vec![];
-        for i in 0..r1cs_length {
-            gate.push(zero_value.clone());
-        }
 
-        let mut a: Vec<Vec<F>> = vec![];
-        let mut b: Vec<Vec<F>> = vec![];
-        let mut c: Vec<Vec<F>> = vec![];
-        let mut witness: Vec<F> = vec![one_value.clone()];
+        let mut uninitialized_r1cs = UninitializedR1CS::new(one_value.clone(), zero_value.clone(), r1cs_length, self.gates.len());
 
-
-        let mut gate_count = 0;
+        let mut current_constraint = 0;
         for (node_idx, node) in self.gates.iter().enumerate() {
             if let Some(operation) = &node.operation {
                 // Current node is an operation we'll add a gate
-                a.push(gate.clone());
-                b.push(gate.clone());
-                c.push(gate.clone());
+                uninitialized_r1cs.add_constraint(zero_value.clone());
 
                 let lhs_index = node.lhs_index.unwrap();
                 let rhs_index = node.rhs_index.unwrap();
@@ -147,29 +133,22 @@ impl<
                 };
 
                 if calculation > lhs.zero() {
-                    witness.push(calculation.clone());
-                    c[gate_count][OUT_INDEX] = one_value.clone();
+                    uninitialized_r1cs.add_to_constraint_c(node_idx, current_constraint, calculation.clone(), one_value.clone());
                 }
 
                 if lhs > lhs.zero() {
-                    // Original index, but bumped right past the const value, as well as the out value(2 places)
-                    let lhs_r1cs_bumped = lhs_index + 2;
-                    a[gate_count][lhs_r1cs_bumped] = one_value.clone();
-                    witness.push(lhs.clone());
+                    uninitialized_r1cs.add_to_constraint_a(lhs_index, lhs, current_constraint, one_value.clone());
                 }
 
                 if rhs > rhs.zero() {
-                    // Original index, but bumped right past the const value, as well as the out value(2 places)
-                    let rhs_r1cs_bumped = rhs_index + 2;
-                    witness.push(rhs.clone());
-                    b[gate_count][rhs_r1cs_bumped] = one_value.clone();
+                    uninitialized_r1cs.add_to_constraint_b(rhs_index, rhs, current_constraint, one_value.clone());
                 }
 
                 supporting_results.insert(node_idx, calculation);
-                gate_count += 1;
+                current_constraint += 1;
             }
         }
-        let r1cs = R1CS::new(a, b, c, witness);
+        let r1cs = uninitialized_r1cs.into_r1cs();
         (
             supporting_results.get(&(self.gates.len() - 1)).cloned(),
             r1cs,
