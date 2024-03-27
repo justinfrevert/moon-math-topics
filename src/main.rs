@@ -16,7 +16,6 @@ fn main() {
     let w_0 = field.element(3);
     let w_1 = field.element(4);
     let x_0 = field.element(2);
-    let number = field.element(1);
 
     let instructions = vec![
         // 3 inputs
