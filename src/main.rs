@@ -1,33 +1,67 @@
 pub mod circuit;
 pub mod circuit_field;
-
+pub mod r1cs;
 
 use circuit::{Circuit, Operation::*};
+use circuit_field::CircuitFieldElement;
 use crate::{
     circuit::Node,
-    circuit_field::CircuitField
+    circuit_field::{CircuitField, FieldElementOne, FieldElementZero}
 };
 
 fn main() {
-    // Use the circuit functions
-    // Try showing 3 factors of a number 27
-    let instructions = vec![
-        Node::constant(3),
-        Node::constant(3),
-        Node::operation(Multiply, 0, 1),
+    let field = CircuitField(9);
+    let zero = field.element(0);
+    let one = field.element(1);
+    let w_0 = field.element(3);
+    let w_1 = field.element(4);
+    let x_0 = field.element(2);
+    let number = field.element(1);
 
-        Node::constant(3),
-        Node::operation(Multiply, 2, 3),
+    let instructions = vec![
+        // 3 inputs
+        Node::constant(w_0),
+        Node::constant(w_1),
+        Node::constant(x_0),
+        
+        // Middle one is multiplied by the other two
+        Node::operation(Multiply, 0, 1), // w_0 * w_1 // idx 3
+        Node::operation(Multiply, 1, 2), // w_1 * x_1
+
+        // product of first two is added with third input
+        Node::operation(Add, 2, 3),
+        // (Optional) equality check between the final two.
     ];
 
-    let mut c = Circuit::new(instructions);
-    c.calculate();
+    let mut circuit = Circuit::new(instructions, field.clone());
+    let (result, r1cs) = circuit.calculate_with_trace();
+
+    // [1, out, x, y].
+    // A is [0, 0, 1, 0], because x is present, and none of the other variables are.
+    // B is [0, 0, 0, 1] because the variables in the right hand side are just y, and
+    // C is [0, 1, 0, 0] because we only have the out variable.
+
+    // Witness should appear as:
+    // [1, 4223, 41, 103], or [1, out, x, y].
+    let a = vec![[zero.clone(), zero.clone(), one.clone(), zero.clone()]];
+    let b = vec![[zero.clone(), zero.clone(), zero.clone(), one.clone()]];
+    let c = vec![[zero.clone(), one.clone(), zero.clone(), zero]];
+    let witness = vec![field.element(1), field.element(4223), field.element(41),field.element(103)];
+
+    assert_eq!(r1cs.a, a);
+    assert_eq!(r1cs.b, b);
+    assert_eq!(r1cs.c, c);
+    assert_eq!(r1cs.witness.len(), witness.len());
+    assert_eq!(r1cs.witness, witness);
+
+    println!("Done. Witness: {:?}", r1cs);
 }
 
 #[test]
 fn three_factors_example_works() {
     let number = 27;
     let x = 3;
+    let unused_field = CircuitField(1);
 
     let instructions = vec![
         Node::constant(x),
@@ -37,27 +71,28 @@ fn three_factors_example_works() {
         Node::operation(Multiply, 2, 3),
     ];
 
-    let mut c = Circuit::new(instructions);
+    let mut c = Circuit::new(instructions, unused_field);
     assert_eq!(c.calculate(), Some(number));
 }
 
 #[test]
 fn addition() {
     let number = 9;
-
+    let unused_field = CircuitField(1);
     let instructions = vec![
         Node::constant(4),
         Node::constant(5),
         Node::operation(Add, 0, 1),
     ];
 
-    let mut c = Circuit::new(instructions);
+    let mut c = Circuit::new(instructions, unused_field);
     assert_eq!(c.calculate(), Some(number));
 }
 
 #[test]
 fn addition_and_multiplication() {
     let number = 81;
+    let unused_field = CircuitField(1);
 
     let instructions = vec![
         Node::constant(4),
@@ -67,7 +102,7 @@ fn addition_and_multiplication() {
         Node::operation(Multiply, 2, 3)
     ];
 
-    let mut c = Circuit::new(instructions);
+    let mut c = Circuit::new(instructions, unused_field);
     assert_eq!(c.calculate(), Some(number));
 }
 
@@ -85,7 +120,7 @@ fn with_generic_types() {
         Node::operation(Multiply, 2, 3),
     ];
 
-    let c = Circuit::new(instructions);
+    let c = Circuit::new(instructions, field);
     assert_eq!(c.calculate(), Some(number));
 }
 
@@ -102,13 +137,15 @@ fn addition_and_multiplication_with_modulus() {
         Node::operation(Multiply, 2, 3)
     ];
 
-    let mut c = Circuit::new(instructions);
+    let mut c = Circuit::new(instructions, field);
     assert_eq!(c.calculate(), Some(number));
 }
 
 #[test]
 fn squares() {
     let number = 36;
+    let unusedfield = CircuitField(13);
+
     let instructions = vec![
         Node::constant(2),
         Node::constant(3),
@@ -116,7 +153,7 @@ fn squares() {
         Node::operation(Multiply, 1, 1), // 3^2
         Node::operation(Multiply, 2, 3), // 2^2 * 3^2
     ];
-    let mut c = Circuit::new(instructions);
+    let mut c = Circuit::new(instructions, unusedfield);
     assert_eq!(c.calculate(), Some(number));
 }
 
@@ -133,22 +170,12 @@ fn squares_with_modulus() {
         Node::operation(Multiply, 2, 3), // 2^2 * 3^2
     ];
 
-    let mut c = Circuit::new(instructions);
+    let mut c = Circuit::new(instructions,field);
     assert_eq!(c.calculate(), Some(number));
 }
 
-#[test]
-fn point_on_curve_circuit() {
-    // From text: the tiny jub-jub curve is considered over the prime field \mathbb{F}_{13}
-    let field = CircuitField(13);
-    // 0 = 1 + 8 · x2 · y2 + 10 · x2 + 12y2 ⇔ 
-    let expected_result = field.element(0);
-
-    // Some points to test: (1,2), (1, 11), (4, 0)
-    let x = field.element(1);
-    let y = field.element(2);
-
-    let instructions = vec![
+fn point_on_curve_circuit(x: CircuitFieldElement, y: CircuitFieldElement, field: CircuitField) -> Circuit<CircuitFieldElement, CircuitField> {
+    let instructions: Vec<Node<circuit_field::CircuitFieldElement>> = vec![
         Node::constant(field.element(1)), // 0
         Node::constant(field.element(8)), // 1
         Node::constant(x),                // 2
@@ -156,7 +183,6 @@ fn point_on_curve_circuit() {
         Node::constant(field.element(10)),// 4 
         Node::constant(field.element(12)),// 5
 
-        
         // Initial multiplications
         Node::operation(Multiply, 2, 2), // 1. x * x // idx 6
         Node::operation(Multiply, 3, 3), // 2. y * y
@@ -170,7 +196,132 @@ fn point_on_curve_circuit() {
         Node::operation(Add, 11, 12), // 8. (8 * x^2 * y^2) + (1 + (10x^2)))
         Node::operation(Add, 10, 13), // 9. ((8 * x^2 * y^2) + (1 + (10x^2))) + (12 *y^2))
     ];
+    Circuit::new(instructions, field)
+}
 
-    let c = Circuit::new(instructions);
-    assert_eq!(c.calculate(), Some(expected_result));
+#[test]
+fn point_on_curve_circuit_works() {
+    // From text: the tiny jub-jub curve is considered over the prime field \mathbb{F}_{13}
+    let field = CircuitField(13);
+    // 0 = 1 + 8 · x^2 · y^2 + 10 · x^2 + 12y^2 
+    let expected_result = field.element(0);
+
+    // Some points to test: (1,2), (1, 11), (4, 0), (5,2) (5,11), (6,5), (6,8), ...... (12,8)
+    let circuit_1_2 = point_on_curve_circuit(field.element(1), field.element(2), field.clone());
+    let circuit_1_11 = point_on_curve_circuit(field.element(1), field.element(11), field.clone());
+    // Doesn't work:
+    let circuit_4_0 = point_on_curve_circuit(field.element(4), field.element(0), field.clone());
+
+    assert_eq!(circuit_1_2.calculate(), Some(expected_result.clone()));
+    assert_eq!(circuit_1_11.calculate(), Some(expected_result.clone()));
+}
+
+#[test]
+// Example from rareskills book
+fn simple_circuit() {
+    let field = CircuitField(13);
+    
+    let x = field.element(2);
+    let y = field.element(3);
+
+    // x^2 y
+    let instructions = vec![
+        Node::constant(x),
+        Node::constant(y),
+        Node::operation(Multiply, 0, 0), // x^2
+        Node::operation(Multiply, 1, 2), // (x^2) * y
+    ];
+    let c = Circuit::new(instructions, field.clone());
+
+    assert_eq!(c.calculate(), Some(field.element(12)));
+}
+
+#[test]
+// Example from rareskills book
+fn simple_circuit_with_example_witness() {
+    let field = CircuitField(13);
+    
+    let x = field.element(41);
+    let y = field.element(103);
+
+    // x^2 y
+    let instructions = vec![
+        Node::constant(x),
+        Node::constant(y),
+        Node::operation(Multiply, 0, 1),
+    ];
+
+    let circuit = Circuit::new(instructions, field.clone());
+    let zero = field.element(0);
+    let one = field.element(1);
+
+    let (result, r1cs) = circuit.calculate_with_trace();
+
+    // [1, out, x, y].
+    // A is [0, 0, 1, 0], because x is present, and none of the other variables are.
+    // B is [0, 0, 0, 1] because the variables in the right hand side are just y, and
+    // C is [0, 1, 0, 0] because we only have the out variable.
+
+    // Witness should appear as:
+    // [1, 4223, 41, 103], or [1, out, x, y].
+    let a = vec![[zero.clone(), zero.clone(), one.clone(), zero.clone()]];
+    let b = vec![[zero.clone(), zero.clone(), zero.clone(), one.clone()]];
+    let c = vec![[zero.clone(), one.clone(), zero.clone(), zero]];
+    let expected_witness = vec![field.element(1), field.element(4223), field.element(41),field.element(103)];
+
+    assert_eq!(r1cs.a.len(), a.len());
+    assert_eq!(r1cs.a, a);
+    assert_eq!(r1cs.b, b);
+    assert_eq!(r1cs.c, c);
+    assert_eq!(r1cs.witness.len(), expected_witness.len());
+    assert_eq!(r1cs.witness, expected_witness);
+    assert_eq!(result, Some(field.element(4223)));
+}
+
+
+// Example from zk mooc video
+#[test]
+fn simple_r1cs_construction() {
+    let field = CircuitField(9);
+    let zero = field.element(0);
+    let one = field.element(1);
+    let w_0 = field.element(3);
+    let w_1 = field.element(4);
+    let x_0 = field.element(2);
+
+    let instructions = vec![
+        // 3 inputs
+        Node::constant(w_0),
+        Node::constant(w_1),
+        Node::constant(x_0),
+        
+        // Middle one is multiplied by the other two
+        Node::operation(Multiply, 0, 1), // w_0 * w_1 // idx 3 // w_2
+        Node::operation(Multiply, 1, 2), // w_1 * x_1
+
+        // product of first two is added with third input
+        Node::operation(Add, 2, 3),
+        // (Optional) equality check between the final two.
+    ];
+    let circuit = Circuit::new(instructions, field.clone());
+    
+    let (_, r1cs) = circuit.calculate_with_trace();
+
+    let a = vec![[zero.clone(), zero.clone(), one.clone(), zero.clone()]];
+    let b = vec![[zero.clone(), zero.clone(), zero.clone(), one.clone()]];
+    let c = vec![[zero.clone(), one.clone(), zero.clone(), zero]];
+    let expected_witness = vec![field.element(1), field.element(4223), field.element(41),field.element(103)];
+
+    assert_eq!(r1cs.a.len(), a.len());
+    assert_eq!(r1cs.a, a);
+    assert_eq!(r1cs.b, b);
+    assert_eq!(r1cs.c, c);
+    assert_eq!(r1cs.witness.len(), expected_witness.len());
+    assert_eq!(r1cs.witness, expected_witness);
+
+    // Assert constraints:
+    // w_0 * w_1 = w_2
+    // w_3 = w_2 * x_0
+    // w_1 * x_0
+    // Optional: w_3 == w_4
 }

@@ -1,16 +1,9 @@
-// use std::ops::{Add, Mul};
-// pub struct CircuitField(u64);
-
-// impl Add for CircuitField {
-//     fn add(self, rhs: Self) -> Self::Output {
-//         self
-//     }
-// }
-
+use std::cmp::Ordering;
 use std::ops::AddAssign;
-use std::ops::{Add, Div, Mul, Neg, Sub};
+use std::ops::{Add, Mul, Neg};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+// Field with sole value of modulus
 pub struct CircuitField(pub u64);
 
 impl CircuitField {
@@ -22,6 +15,68 @@ impl CircuitField {
     }
 }
 
+pub trait CicuitFieldInfo {
+    fn modulus(&self) -> u64;
+ }
+
+ impl CicuitFieldInfo for CircuitField {
+    fn modulus(&self) -> u64 {
+        self.0
+    }
+ }
+
+ pub trait FieldElementZero {
+    fn zero(&self) -> Self;
+ }
+
+ impl FieldElementZero for CircuitFieldElement {
+    fn zero(&self) -> Self {
+        CircuitFieldElement { value: 0, field: self.clone().field }
+    }
+ }
+
+ pub trait FieldElementOne {
+    fn one(&self) -> Self;
+ }
+
+ impl FieldElementOne for CircuitFieldElement {
+    fn one(&self) -> Self {
+        CircuitFieldElement { value: 1, field: self.clone().field }
+    }
+ }
+
+ // For testing only:
+ impl FieldElementZero for u32 {
+    fn zero(&self) -> Self {
+        0_u32
+    }
+ }
+
+ impl FieldElementOne for u32 {
+    fn one(&self) -> Self {
+        1_u32
+    }
+ }
+
+ pub trait NewValue<T> {
+    fn new(value: T, supporting_value: CircuitField) -> Self;
+ }
+
+ impl <T: Into<u64>> NewValue<T> for CircuitFieldElement {
+    fn new(value: T, supporting_value: CircuitField) -> Self {
+        CircuitFieldElement {
+            value:  value.into(),
+            field: supporting_value
+        }
+    }
+ }
+
+ impl <T: Into<u32>> NewValue<T> for u32 {
+    fn new(value: T, _supporting_value: CircuitField) -> Self {
+        value.into()
+    }
+ }
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CircuitFieldElement {
     pub value: u64,
@@ -31,6 +86,10 @@ pub struct CircuitFieldElement {
 impl CircuitFieldElement {
     pub fn new(value: u64, field: CircuitField) -> Self {
         CircuitFieldElement { value, field }
+    }
+
+    pub fn circuit_field_zero(&self) -> Self {
+        self.field.element(0)
     }
 }
 
@@ -67,6 +126,19 @@ impl Mul for CircuitFieldElement {
         CircuitFieldElement::new(result, self.field)
     }
 }
+
+impl Ord for CircuitFieldElement {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.value.cmp(&other.value)
+    }
+}
+
+impl PartialOrd for CircuitFieldElement {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
 
 
 #[test]
