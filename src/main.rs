@@ -1,6 +1,7 @@
 pub mod circuit;
 pub mod circuit_field;
 pub mod r1cs;
+pub mod qap;
 
 use crate::{
     circuit::Node,
@@ -433,50 +434,8 @@ fn example_r1cs_more_terms() {
     assert_eq!(r1cs.witness, expected_witness);
 }
 
-
-// // Example from zk mooc video
-// #[test]
-// fn simple_r1cs_construction() {
-//     let field = CircuitField(9);
-//     let zero = field.element(0);
-//     let one = field.element(1);
-//     let w_0 = field.element(3);
-//     let w_1 = field.element(4);
-//     let x_0 = field.element(2);
-
-//     let instructions = vec![
-//         // 3 inputs
-//         Node::constant(w_0),
-//         Node::constant(w_1),
-//         Node::constant(x_0),
-
-//         // Middle one is multiplied by the other two
-//         Node::operation(Multiply, 0, 1), // w_0 * w_1 // idx 3 // w_2
-//         Node::operation(Multiply, 1, 2), // w_1 * x_1
-
-//         // product of first two is added with third input
-//         Node::operation(Add, 2, 3),
-//         // (Optional) equality check between the final two.
-//     ];
-//     let circuit = Circuit::new(instructions, field.clone());
-
-//     let (_, r1cs) = circuit.calculate_with_trace();
-
-//     let a = vec![[zero.clone(), zero.clone(), one.clone(), zero.clone()]];
-//     let b = vec![[zero.clone(), zero.clone(), zero.clone(), one.clone()]];
-//     let c = vec![[zero.clone(), one.clone(), zero.clone(), zero]];
-//     let expected_witness = vec![field.element(1), field.element(4223), field.element(41),field.element(103)];
-
-//     assert_eq!(r1cs.a.len(), a.len());
-//     assert_eq!(r1cs.a, a);
-//     assert_eq!(r1cs.b, b);
-//     assert_eq!(r1cs.c, c);
-//     assert_eq!(r1cs.witness.len(), expected_witness.len());
-//     assert_eq!(r1cs.witness, expected_witness);
-
-//     // Assert constraints:
-//     // w_0 * w_1 = w_2
-//     // w_3 = w_2 * x_0
-//     // w_1 * x_0
-//     // Optional: w_3 == w_4
-// }
+#[test]
+fn qap_works() {
+    // Field must be larger than 
+    let field = CircuitField(420);
+}
