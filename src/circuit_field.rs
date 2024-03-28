@@ -1,4 +1,7 @@
+#[cfg(feature = "proving")]
+use rand::Rng;
 use std::cmp::Ordering;
+use std::fmt::Display;
 use std::ops::AddAssign;
 use std::ops::{Add, Mul, Neg};
 
@@ -10,72 +13,84 @@ impl CircuitField {
     pub fn element(&self, value: u64) -> CircuitFieldElement {
         CircuitFieldElement {
             field: self.clone(),
-            value: value % self.0
+            value: value % self.0,
         }
+    }
+    #[cfg(feature = "proving")]
+    pub fn random_element(&self) -> CircuitFieldElement {
+        let mut rng = rand::thread_rng();
+        let value: u64 = rng.gen_range(0..self.0);
+        self.element(value)
     }
 }
 
 pub trait CicuitFieldInfo {
     fn modulus(&self) -> u64;
- }
+}
 
- impl CicuitFieldInfo for CircuitField {
+impl CicuitFieldInfo for CircuitField {
     fn modulus(&self) -> u64 {
         self.0
     }
- }
+}
 
- pub trait FieldElementZero {
+pub trait FieldElementZero {
     fn zero(&self) -> Self;
- }
+}
 
- impl FieldElementZero for CircuitFieldElement {
+impl FieldElementZero for CircuitFieldElement {
     fn zero(&self) -> Self {
-        CircuitFieldElement { value: 0, field: self.clone().field }
+        CircuitFieldElement {
+            value: 0,
+            field: self.clone().field,
+        }
     }
- }
+}
 
- pub trait FieldElementOne {
+pub trait FieldElementOne {
     fn one(&self) -> Self;
- }
+}
 
- impl FieldElementOne for CircuitFieldElement {
+impl FieldElementOne for CircuitFieldElement {
     fn one(&self) -> Self {
-        CircuitFieldElement { value: 1, field: self.clone().field }
+        CircuitFieldElement {
+            value: 1,
+            field: self.clone().field,
+        }
     }
- }
+}
 
- // For testing only:
- impl FieldElementZero for u32 {
+// For testing only:
+impl FieldElementZero for u32 {
     fn zero(&self) -> Self {
         0_u32
     }
- }
+}
 
- impl FieldElementOne for u32 {
+impl FieldElementOne for u32 {
     fn one(&self) -> Self {
         1_u32
     }
- }
+}
 
- pub trait NewValue<T> {
+pub trait NewValue<T> {
     fn new(value: T, supporting_value: CircuitField) -> Self;
- }
+}
 
- impl <T: Into<u64>> NewValue<T> for CircuitFieldElement {
+impl<T: Into<u64>> NewValue<T> for CircuitFieldElement {
     fn new(value: T, supporting_value: CircuitField) -> Self {
         CircuitFieldElement {
-            value:  value.into(),
-            field: supporting_value
+            value: value.into(),
+            field: supporting_value,
         }
     }
- }
+}
 
- impl <T: Into<u32>> NewValue<T> for u32 {
+impl<T: Into<u32>> NewValue<T> for u32 {
     fn new(value: T, _supporting_value: CircuitField) -> Self {
         value.into()
     }
- }
+}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CircuitFieldElement {
@@ -105,7 +120,10 @@ impl<'a, 'b> Add<&'b CircuitFieldElement> for &'a CircuitFieldElement {
     type Output = CircuitFieldElement;
 
     fn add(self, rhs: &'b CircuitFieldElement) -> Self::Output {
-        assert_eq!(self.field.0, rhs.field.0, "Fields must be the same for addition");
+        assert_eq!(
+            self.field.0, rhs.field.0,
+            "Fields must be the same for addition"
+        );
         let ans = (self.value + rhs.value) % self.field.0;
         CircuitFieldElement::new(ans, self.field.clone())
     }
@@ -123,7 +141,6 @@ impl Neg for CircuitFieldElement {
 
     fn neg(self) -> Self::Output {
         let result = (self.clone().field.0 - self.clone().value) % self.clone().field.clone().0;
-        // let result = (self.field.0 - self.value) % self.field.0;
         CircuitFieldElement::new(result, self.clone().field)
     }
 }
@@ -136,7 +153,6 @@ impl<'a> Neg for &'a CircuitFieldElement {
         CircuitFieldElement::new(result, self.field.clone())
     }
 }
-
 
 impl Mul for CircuitFieldElement {
     type Output = CircuitFieldElement;
@@ -151,7 +167,10 @@ impl<'a, 'b> Mul<&'b CircuitFieldElement> for &'a CircuitFieldElement {
     type Output = CircuitFieldElement;
 
     fn mul(self, rhs: &'b CircuitFieldElement) -> Self::Output {
-        assert_eq!(self.field.0, rhs.field.0, "Fields must be the same for multiplication");
+        assert_eq!(
+            self.field.0, rhs.field.0,
+            "Fields must be the same for multiplication"
+        );
         let result = (self.value * rhs.value) % self.field.0;
         CircuitFieldElement::new(result, self.field.clone())
     }
@@ -169,7 +188,11 @@ impl PartialOrd for CircuitFieldElement {
     }
 }
 
-
+impl Display for CircuitFieldElement {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}", self.value)
+    }
+}
 
 #[test]
 fn adds() {

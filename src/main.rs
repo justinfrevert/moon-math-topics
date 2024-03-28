@@ -1,110 +1,176 @@
 pub mod circuit;
 pub mod circuit_field;
-pub mod r1cs;
+pub mod polynomial;
 pub mod qap;
+pub mod r1cs;
 
-use crate::{
-    circuit::Node,
-    circuit_field::CircuitField,
-};
-use circuit::{Circuit, Operation::*};
 use crate::circuit_field::CircuitFieldElement;
+use crate::{circuit::Node, circuit_field::CircuitField};
+use circuit::{Circuit, Operation::*};
+
+use std::ops::Neg;
+
+use polynomial::Polynomial;
+use qap::QAP;
 fn main() {
-    let field = CircuitField(42000);
-    let zero = field.element(0);
-    let one = field.element(1);
-    let x = field.element(3.clone());
-    let y = field.element(4.clone());
-    let z = field.element(2.clone());
-    let u = field.element(5.clone());
+    let field = CircuitField(13);
+    // let zero = field.element(0);
+    // let one = field.element(1);
+    let w_0 = field.element(3.clone());
+    let w_1 = field.element(4.clone());
+    let w_2 = field.element(2.clone());
 
     let instructions = vec![
-        // 4 inputs
-        Node::constant(x.clone()), // 0
-        Node::constant(y.clone()), // 1
-        Node::constant(z.clone()),
-        Node::constant(u.clone()),
-        // x * y
+        Node::constant(w_0.clone()),
+        Node::constant(w_1.clone()),
+        Node::constant(w_2.clone()),
+        // w_0 * w_1
         Node::operation(Multiply, 0, 1), // v1 // idx 4
-        // z * u
+        // v_1 * w_2
         Node::operation(Multiply, 2, 3), // v2 // idx 5
-        // v1 * v2 aka ((x * y) * (z * u))
-        Node::operation(Multiply, 4, 5)
     ];
 
     let circuit = Circuit::new(instructions, field.clone());
-    let (result, r1cs) = circuit.calculate_with_trace();
+    let (_, r1cs) = circuit.calculate_with_trace();
 
-    // A = np.array([[0,0,1,0,0,0,0,0],
-    //     [0,0,0,0,1,0,0,0],
-    //     [0,0,0,0,0,0,1,0]])
+    println!("r1cs {:?}", r1cs.a);
 
-    // B = np.array([[0,0,0,1,0,0,0,0],
-    //         [0,0,0,0,0,1,0,0],
-    //         [0,0,0,0,0,0,0,1]])
+    let qap = QAP::new(r1cs, field.clone()).unwrap();
 
-    // C = np.array([[0,0,0,0,0,0,1,0],
-    //         [0,0,0,0,0,0,0,1],
-    //         [0,1,0,0,0,0,0,0]])
+    // println!("{:?}", r1cs.b);
 
-    // Witness should appear as:
-    // [1, out, x, y, z, u, v1, v2].
+    // // A = np.array([[0,0,1,0,0,0,0,0],
+    // //     [0,0,0,0,1,0,0,0],
+    // //     [0,0,0,0,0,0,1,0]])
 
-    let a = vec![
-        vec![
-            zero.clone(),
-            zero.clone(),
-            one.clone(),
-            zero.clone(),
-            zero.clone(),
-            zero.clone(),
-            zero.clone(),
-            zero.clone(),
-        ],
-        vec![
-            zero.clone(),
-            zero.clone(),
-            zero.clone(),
-            zero.clone(),
-            one.clone(),
-            zero.clone(),
-            zero.clone(),
-            zero.clone(),
-        ],
-        vec![
-            zero.clone(),
-            zero.clone(),
-            zero.clone(),
-            zero.clone(),
-            zero.clone(),
-            zero.clone(),
-            one.clone(),
-            zero.clone(),
-        ],
-    ];
+    // // B = np.array([[0,0,0,1,0,0,0,0],
+    // //         [0,0,0,0,0,1,0,0],
+    // //         [0,0,0,0,0,0,0,1]])
 
-    let b = vec![
-        vec![zero.clone(), zero.clone(), zero.clone(), one.clone(), zero.clone(), zero.clone(), zero.clone(), zero.clone()],
-        vec![zero.clone(), zero.clone(), zero.clone(), zero.clone(), zero.clone(), one.clone(), zero.clone(), zero.clone()],
-        vec![zero.clone(), zero.clone(), zero.clone(), zero.clone(), zero.clone(), zero.clone(), zero.clone(), one.clone()],
-    ];
-    let c = vec![
-        vec![zero.clone(), zero.clone(), zero.clone(), zero.clone(), zero.clone(), zero.clone(), one.clone(), zero.clone()],
-        vec![zero.clone(), zero.clone(), zero.clone(), zero.clone(), zero.clone(), zero.clone(), zero.clone(), one.clone()],
-        vec![zero.clone(), one.clone(), zero.clone(), zero.clone(), zero.clone(), zero.clone(), zero.clone(), zero.clone()],
-    ];
+    // // C = np.array([[0,0,0,0,0,0,1,0],
+    // //         [0,0,0,0,0,0,0,1],
+    // //         [0,1,0,0,0,0,0,0]])
 
-    let v1 = field.element(12); // x * y == 12
-    let v2 = field.element(10); // z * u == 10
-    let out = field.element(120); // v1 * v2 == 120
+    // // Witness should appear as:
+    // // [1, out, x, y, z, u, v1, v2].
 
-    let expected_witness = vec![one, out.clone(), x, y, z, u, v1, v2];
+    // let a = vec![
+    //     vec![
+    //         zero.clone(),
+    //         zero.clone(),
+    //         one.clone(),
+    //         zero.clone(),
+    //         zero.clone(),
+    //         zero.clone(),
+    //         zero.clone(),
+    //         zero.clone(),
+    //     ],
+    //     vec![
+    //         zero.clone(),
+    //         zero.clone(),
+    //         zero.clone(),
+    //         zero.clone(),
+    //         one.clone(),
+    //         zero.clone(),
+    //         zero.clone(),
+    //         zero.clone(),
+    //     ],
+    //     vec![
+    //         zero.clone(),
+    //         zero.clone(),
+    //         zero.clone(),
+    //         zero.clone(),
+    //         zero.clone(),
+    //         zero.clone(),
+    //         one.clone(),
+    //         zero.clone(),
+    //     ],
+    // ];
 
-    assert_eq!(result, Some(out));
-    assert_eq!(r1cs.a, a);
-    assert_eq!(r1cs.b, b);
-    assert_eq!(r1cs.c, c);
-    assert_eq!(r1cs.witness, expected_witness);
+    // let b = vec![
+    //     vec![
+    //         zero.clone(),
+    //         zero.clone(),
+    //         zero.clone(),
+    //         one.clone(),
+    //         zero.clone(),
+    //         zero.clone(),
+    //         zero.clone(),
+    //         zero.clone(),
+    //     ],
+    //     vec![
+    //         zero.clone(),
+    //         zero.clone(),
+    //         zero.clone(),
+    //         zero.clone(),
+    //         zero.clone(),
+    //         one.clone(),
+    //         zero.clone(),
+    //         zero.clone(),
+    //     ],
+    //     vec![
+    //         zero.clone(),
+    //         zero.clone(),
+    //         zero.clone(),
+    //         zero.clone(),
+    //         zero.clone(),
+    //         zero.clone(),
+    //         zero.clone(),
+    //         one.clone(),
+    //     ],
+    // ];
+    // let c = vec![
+    //     vec![
+    //         zero.clone(),
+    //         zero.clone(),
+    //         zero.clone(),
+    //         zero.clone(),
+    //         zero.clone(),
+    //         zero.clone(),
+    //         one.clone(),
+    //         zero.clone(),
+    //     ],
+    //     vec![
+    //         zero.clone(),
+    //         zero.clone(),
+    //         zero.clone(),
+    //         zero.clone(),
+    //         zero.clone(),
+    //         zero.clone(),
+    //         zero.clone(),
+    //         one.clone(),
+    //     ],
+    //     vec![
+    //         zero.clone(),
+    //         one.clone(),
+    //         zero.clone(),
+    //         zero.clone(),
+    //         zero.clone(),
+    //         zero.clone(),
+    //         zero.clone(),
+    //         zero.clone(),
+    //     ],
+    // ];
+
+    // let v1 = field.element(12); // x * y == 12
+    // let v2 = field.element(10); // z * u == 10
+    // let out = field.element(120); // v1 * v2 == 120
+
+    // let expected_witness = vec![one, out.clone(), x, y, z, u, v1, v2];
+
+    // assert_eq!(result, Some(out));
+    // assert_eq!(r1cs.a, a);
+    // assert_eq!(r1cs.b, b);
+    // assert_eq!(r1cs.c, c);
+    // assert_eq!(r1cs.witness, expected_witness);
+
+    // let lhs = Polynomial::new(vec![
+    //     field.element(1),
+    //     field.element(1),
+    //     field.element(5),
+    //     field.element(3),
+    // ]);
+    // let rhs = Polynomial::new(vec![field.element(3), field.element(5), field.element(2)]);
 }
 
 #[test]
@@ -356,7 +422,7 @@ fn example_r1cs_more_terms() {
         // z * u
         Node::operation(Multiply, 2, 3), // v2 // idx 5
         // v1 * v2 aka ((x * y) * (z * u))
-        Node::operation(Multiply, 4, 5)
+        Node::operation(Multiply, 4, 5),
     ];
 
     let mut circuit = Circuit::new(instructions, field.clone());
@@ -411,14 +477,68 @@ fn example_r1cs_more_terms() {
     ];
 
     let b = vec![
-        vec![zero.clone(), zero.clone(), zero.clone(), one.clone(), zero.clone(), zero.clone(), zero.clone(), zero.clone()],
-        vec![zero.clone(), zero.clone(), zero.clone(), zero.clone(), zero.clone(), one.clone(), zero.clone(), zero.clone()],
-        vec![zero.clone(), zero.clone(), zero.clone(), zero.clone(), zero.clone(), zero.clone(), zero.clone(), one.clone()],
+        vec![
+            zero.clone(),
+            zero.clone(),
+            zero.clone(),
+            one.clone(),
+            zero.clone(),
+            zero.clone(),
+            zero.clone(),
+            zero.clone(),
+        ],
+        vec![
+            zero.clone(),
+            zero.clone(),
+            zero.clone(),
+            zero.clone(),
+            zero.clone(),
+            one.clone(),
+            zero.clone(),
+            zero.clone(),
+        ],
+        vec![
+            zero.clone(),
+            zero.clone(),
+            zero.clone(),
+            zero.clone(),
+            zero.clone(),
+            zero.clone(),
+            zero.clone(),
+            one.clone(),
+        ],
     ];
     let c = vec![
-        vec![zero.clone(), zero.clone(), zero.clone(), zero.clone(), zero.clone(), zero.clone(), one.clone(), zero.clone()],
-        vec![zero.clone(), zero.clone(), zero.clone(), zero.clone(), zero.clone(), zero.clone(), zero.clone(), one.clone()],
-        vec![zero.clone(), one.clone(), zero.clone(), zero.clone(), zero.clone(), zero.clone(), zero.clone(), zero.clone()],
+        vec![
+            zero.clone(),
+            zero.clone(),
+            zero.clone(),
+            zero.clone(),
+            zero.clone(),
+            zero.clone(),
+            one.clone(),
+            zero.clone(),
+        ],
+        vec![
+            zero.clone(),
+            zero.clone(),
+            zero.clone(),
+            zero.clone(),
+            zero.clone(),
+            zero.clone(),
+            zero.clone(),
+            one.clone(),
+        ],
+        vec![
+            zero.clone(),
+            one.clone(),
+            zero.clone(),
+            zero.clone(),
+            zero.clone(),
+            zero.clone(),
+            zero.clone(),
+            zero.clone(),
+        ],
     ];
 
     let v1 = field.element(12); // x * y == 12
@@ -436,6 +556,6 @@ fn example_r1cs_more_terms() {
 
 #[test]
 fn qap_works() {
-    // Field must be larger than 
+    // Field must be larger than
     let field = CircuitField(420);
 }
