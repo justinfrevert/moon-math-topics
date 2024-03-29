@@ -58,6 +58,7 @@ impl<F: Add + Mul + Clone> QAP<F> {
         for i in 0..constraint_count {
             // let m_1 =;
             let a_i = r1cs.a[i].clone();
+
             // a_polys.push(target_polynomial.lagrange_polynomial());
         }
 

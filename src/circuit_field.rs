@@ -2,7 +2,7 @@
 use rand::Rng;
 use std::cmp::Ordering;
 use std::fmt::Display;
-use std::ops::AddAssign;
+use std::ops::{AddAssign, Sub, SubAssign};
 use std::ops::{Add, Mul, Neg};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -36,6 +36,7 @@ impl CicuitFieldInfo for CircuitField {
 
 pub trait FieldElementZero {
     fn zero(&self) -> Self;
+    fn is_zero(&self) -> bool;
 }
 
 impl FieldElementZero for CircuitFieldElement {
@@ -44,6 +45,10 @@ impl FieldElementZero for CircuitFieldElement {
             value: 0,
             field: self.clone().field,
         }
+    }
+    
+    fn is_zero(&self) -> bool {
+        self.value == 0_u64
     }
 }
 
@@ -64,6 +69,9 @@ impl FieldElementOne for CircuitFieldElement {
 impl FieldElementZero for u32 {
     fn zero(&self) -> Self {
         0_u32
+    }
+    fn is_zero(&self) -> bool {
+        self == &0_u32
     }
 }
 
@@ -106,6 +114,17 @@ impl CircuitFieldElement {
     pub fn circuit_field_zero(&self) -> Self {
         self.field.element(0)
     }
+
+    pub fn invert(&self) -> Self {
+        // TODO: Replace field modulus type with something which would allow larger exponentiations
+        let small_modulus: u32 = self.field.0.try_into().unwrap();
+        let value = self.value.pow(small_modulus - 2_u32) % self.field.0;
+
+        CircuitFieldElement {
+            field: self.field.clone(),
+            value
+        }
+    }
 }
 
 impl Add for CircuitFieldElement {
@@ -115,6 +134,41 @@ impl Add for CircuitFieldElement {
         CircuitFieldElement::new(ans, self.field)
     }
 }
+
+// impl AddAssign for CircuitFieldElement {
+//     fn add_assign(&mut self, rhs: Self) {
+//         let ans = (self.value + rhs.value) % self.field.clone().0;
+//         self = ans;
+//     }
+// }
+
+impl Sub for CircuitFieldElement {
+    type Output = CircuitFieldElement;
+    fn sub(self, rhs: Self) -> Self::Output {
+        self + -rhs
+    }
+}
+
+impl SubAssign<&CircuitFieldElement> for CircuitFieldElement {
+    fn sub_assign(&mut self, rhs: &CircuitFieldElement) {
+        // self = self + -rhs
+
+        if self.value < rhs.value {
+            self.value = (self.field.0 - (rhs.value - self.value)) % self.field.0;
+        } else {
+            self.value = (self.value - rhs.value) % self.field.0;
+        }
+    }
+}
+
+// impl SubAssign for CircuitFieldElement {
+//     fn sub_assign(&mut self, rhs: Self) {
+//         // self = self + -rhs;
+
+//         let mut subtraction = self.clone() + -rhs;
+//         self = &subtraction;
+//     }
+// }
 
 impl<'a, 'b> Add<&'b CircuitFieldElement> for &'a CircuitFieldElement {
     type Output = CircuitFieldElement;
@@ -131,7 +185,6 @@ impl<'a, 'b> Add<&'b CircuitFieldElement> for &'a CircuitFieldElement {
 
 impl AddAssign for CircuitFieldElement {
     fn add_assign(&mut self, rhs: Self) {
-        // let result = (self.value + rhs.value) % self.field.0;
         self.value = (self.clone().value + rhs.value) % self.clone().field.0;
     }
 }
@@ -212,6 +265,17 @@ fn adds() {
         field_element_lower + field_element_higher,
         CircuitFieldElement::new(u64::from(1_u32), field)
     );
+}
+
+#[test]
+fn subtracts_including_negative_case() {
+    // assert!(false)
+    let field = CircuitField(8);
+
+    let a = field.element(4);
+    let b = field.element(5);
+
+    assert_eq!(a - b, field.element(7));
 }
 
 #[test]
