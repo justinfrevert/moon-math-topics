@@ -8,9 +8,11 @@ use std::{
 };
 
 #[derive(Clone, Debug)]
+// A constant value in a given circuit
 pub struct Constant<F>(F);
 
 #[derive(Clone, Debug)]
+// Available operations for the circuit
 pub enum Operation {
     Add,
     Multiply,
@@ -69,9 +71,8 @@ impl<
         Circuit { gates, field }
     }
 
+    // Compute a circuit
     pub fn calculate(self) -> Option<F> {
-        // A cache for numbers calculated on-the-fly in any Operative nodes. This might support not having to execute multiple
-        // loops to order the nodes
         let mut supporting_results: HashMap<usize, F> = HashMap::new();
 
         for (idx, node) in self.gates.iter().enumerate() {
@@ -98,6 +99,7 @@ impl<
         supporting_results.get(&(self.gates.len() - 1)).cloned()
     }
 
+    // Compute a given circuit while also outputting the constraints of its operations in the form of R1CS
     pub fn calculate_with_trace(self) -> (Option<F>, R1CS<F>) {
         let mut supporting_results: HashMap<usize, F> = HashMap::new();
 
@@ -106,7 +108,12 @@ impl<
         let one_value = self.gates[0].clone().value.unwrap().one();
         let r1cs_length = self.gates.len() + 1;
 
-        let mut uninitialized_r1cs = UninitializedR1CS::new(one_value.clone(), zero_value.clone(), r1cs_length, self.gates.len());
+        let mut uninitialized_r1cs = UninitializedR1CS::new(
+            one_value.clone(),
+            zero_value.clone(),
+            r1cs_length,
+            self.gates.len(),
+        );
 
         let mut current_constraint = 0;
         for (node_idx, node) in self.gates.iter().enumerate() {
@@ -127,21 +134,36 @@ impl<
                     .unwrap_or_else(|| supporting_results.get(&rhs_index).unwrap().clone());
 
                 let calculation = match operation {
-                    // Remove clones...
+                    // TODO: Remove clones...
                     Operation::Add => lhs.clone() + rhs.clone(),
                     Operation::Multiply => lhs.clone() * rhs.clone(),
                 };
 
                 if calculation > lhs.zero() {
-                    uninitialized_r1cs.add_to_constraint_c(node_idx, current_constraint, calculation.clone(), one_value.clone());
+                    uninitialized_r1cs.add_to_constraint_c(
+                        node_idx,
+                        current_constraint,
+                        calculation.clone(),
+                        one_value.clone(),
+                    );
                 }
 
                 if lhs > lhs.zero() {
-                    uninitialized_r1cs.add_to_constraint_a(lhs_index, lhs, current_constraint, one_value.clone());
+                    uninitialized_r1cs.add_to_constraint_a(
+                        lhs_index,
+                        lhs,
+                        current_constraint,
+                        one_value.clone(),
+                    );
                 }
 
                 if rhs > rhs.zero() {
-                    uninitialized_r1cs.add_to_constraint_b(rhs_index, rhs, current_constraint, one_value.clone());
+                    uninitialized_r1cs.add_to_constraint_b(
+                        rhs_index,
+                        rhs,
+                        current_constraint,
+                        one_value.clone(),
+                    );
                 }
 
                 supporting_results.insert(node_idx, calculation);

@@ -1,7 +1,7 @@
 use crate::circuit_field::{CircuitField, CircuitFieldElement, FieldElementOne, FieldElementZero};
+use std::cmp::max;
 use std::fmt::Display;
 use std::ops::{Add, Div, Mul, Neg};
-
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Polynomial<F>(Vec<F>);
 
@@ -16,53 +16,49 @@ impl<F: Add + Mul + Neg<Output = F> + FieldElementZero + FieldElementOne> Polyno
         self.0.last().clone()
     }
 
-    // pub fn lagrange_polynomial(points: Vec<(F, F)>, field: CircuitField) -> Self {
-    // pub fn lagrange_polynomial(points: Vec<(CircuitFieldElement, CircuitFieldElement)>, field: CircuitField) -> Self {
-    //     // let mut x = field.element(1);
-    //     let x = points[0].0.one();
+    pub fn lagrange_interpolation(
+        points: Vec<(CircuitFieldElement, CircuitFieldElement)>,
+        field: CircuitField,
+    ) -> Polynomial<CircuitFieldElement> {
+        let zero = field.element(0);
+        let one = field.element(1);
+        let mut final_poly = Polynomial::new(vec![zero.clone()]);
 
-    //     let sum = vec![];
+        for (i, (x_i, y_i)) in points.iter().enumerate() {
+            let mut numerator_poly = Polynomial::new(vec![one.clone()]);
+            let mut denominator = one.clone();
 
-    //     for (j, (x_j, y_j)) in points.into_iter().enumerate() {
-    //         // let inner_product = field.element(1);
-    //         let inner_product = Polynomial::new(vec![field.element(1)]);
-    //         for (i, (x_i, y_i)) in points.into_iter().enumerate() {
-    //             if i != j {
-    //                 // let x_i = ;
-    //                 // let x_j = ;
-    //                 // let numerator = Polynomial::new(vec![field.element(1)]);
-    //                 let numerator = Polynomial::new(vec![-x_i, x]);
-    //                 let denominator = Polynomial::new(vec![-x_i, x_j]);
+            for (j, (x_j, _)) in points.iter().enumerate() {
+                if i != j {
+                    numerator_poly =
+                        numerator_poly * Polynomial::new(vec![-x_j.clone(), one.clone()]);
+                    denominator = denominator * (x_i.clone() - x_j.clone());
+                }
+            }
 
-    //                 inner_product = inner_product * (numerator / denominator)
-    //             }
-    //         }
-    //         sum.push(inner_product);
-    //     }
-    //     // outer_sum
-    //     sum
-    // }
+            // let inv_denominator = denominator.invert();?\
+            let denominator_poly = Polynomial::new(vec![denominator]);
+            let lagrange_basis_poly = numerator_poly / denominator_poly;
+            // Represent y as a polynomial to multiply with other values here
+            let y_polynomial = Polynomial::new(vec![y_i.clone()]);
 
-    // pub fn lagrange_polynomial(points: Vec<(CircuitFieldElement, CircuitFieldElement)>, field: CircuitField) -> Self {
-    //     // let mut x = field.element(1);
-    //     let x = points[0].0.one();
+            // final_poly = final_poly + lagrange_basis_poly * y_i.clone();
+            final_poly = final_poly + lagrange_basis_poly * y_polynomial;
+        }
 
-    //     for (j, (x_j, y_j)) in points.into_iter().enumerate() {
-    //         // let inner_product = field.element(1);
-    //         // let inner_product = Polynomial::new(vec![field.element(1)]);
-    //         for (k, (x_k, y_k)) in points.into_iter().enumerate() {
-    //             if j == k {
-    //                 // Do nothing
-    //             } else {
-
-    //             }
-    //         }
-    //     }
-    //     sum
-    // }
+        final_poly
+    }
 }
 
-impl<F: Add<Output = F> + Mul<Output = F> + FieldElementZero + FieldElementOne + Clone + Neg<Output = F>> Mul for Polynomial<F> {
+impl<
+        F: Add<Output = F>
+            + Mul<Output = F>
+            + FieldElementZero
+            + FieldElementOne
+            + Clone
+            + Neg<Output = F>,
+    > Mul for Polynomial<F>
+{
     type Output = Self;
     fn mul(self, other: Polynomial<F>) -> <Self as Mul<Polynomial<F>>>::Output {
         let mut prod = vec![self.0[0].zero(); self.0.len() + other.0.len() - 1];
@@ -99,6 +95,23 @@ impl Div for Polynomial<CircuitFieldElement> {
         }
         quotient
     }
+}
+
+impl Add for Polynomial<CircuitFieldElement> {
+    type Output = Polynomial<CircuitFieldElement>;
+
+    fn add(self, rhs: Polynomial<CircuitFieldElement>) -> Polynomial<CircuitFieldElement> {
+        let mut out = vec![];
+        let zero = self.0[0].zero();
+        for i in 0..(max(self.0.len(), rhs.0.len())) {
+            let left = self.0.get(i).unwrap_or(&zero);
+            let right = rhs.0.get(i).unwrap_or(&zero);
+
+            out.push(left + right);
+        }
+        Polynomial::new(out)
+    }
+    // fn
 }
 
 // impl<F: Add + Mul + Div + Neg<Output = F> + FieldElementZero + Clone> Div for Polynomial<F> {
@@ -144,7 +157,10 @@ impl<F: Display> Display for Polynomial<F> {
 }
 
 // Helper function to simplify instantiating polynomials with less boilerplate
-pub fn poly_from_field_and_integers(coefficients: Vec<u64>, field: CircuitField) -> Polynomial<CircuitFieldElement> {
+pub fn poly_from_field_and_integers(
+    coefficients: Vec<u64>,
+    field: CircuitField,
+) -> Polynomial<CircuitFieldElement> {
     let mut elements = vec![];
     for c in coefficients {
         elements.push(field.element(c))
@@ -159,7 +175,19 @@ fn multiplication() {
     let lhs = poly_from_field_and_integers(vec![1, 1, 5, 3], field.clone());
     let rhs = poly_from_field_and_integers(vec![3, 5, 2], field.clone());
     let ans = lhs * rhs;
-    assert_eq!(ans, poly_from_field_and_integers(vec![3, 8, 22, 36, 25, 6], field.clone()));
+    assert_eq!(
+        ans,
+        poly_from_field_and_integers(vec![3, 8, 22, 36, 25, 6], field.clone())
+    );
+}
+
+#[test]
+fn adds() {
+    let field = CircuitField(4200);
+    let lft = Polynomial::new(vec![-field.element(1), field.element(2), field.element(1)]);
+    let rhs = Polynomial::new(vec![field.element(6), -field.element(3), field.element(2)]);
+    let ans = Polynomial::new(vec![field.element(5), -field.element(1), field.element(3)]);
+    assert_eq!(lft + rhs, ans);
 }
 
 // #[test]
@@ -182,4 +210,35 @@ fn divides_polynomials() {
     // 2x+3
     let ans = poly_from_field_and_integers(vec![2, 3], field.clone());
     assert_eq!(dividend / divisor, ans)
+}
+
+#[test]
+fn lagrange_inerpolation() {
+    let field = CircuitField(13);
+
+    let point1 = (field.element(2), field.element(4));
+    let point2 = (field.element(1), field.element(3));
+
+    let poly = Polynomial::<CircuitFieldElement>::lagrange_interpolation(
+        vec![point1, point2],
+        field.clone(),
+    );
+
+    let expected_poly = poly_from_field_and_integers(vec![2, 1], field.clone());
+
+    assert_eq!(poly, expected_poly);
+}
+
+#[test]
+fn lagrange_inerpolation_2() {
+    let field = CircuitField(13);
+
+    // Points from example in text
+    let points = vec![
+        (field.clone().element(5), field.clone().element(5)),
+        (field.clone().element(7), field.clone().element(0)),
+    ];
+    let poly = Polynomial::<CircuitFieldElement>::lagrange_interpolation(points, field.clone());
+    let expected = poly_from_field_and_integers(vec![10, 6], field);
+    assert_eq!(poly, expected);
 }
