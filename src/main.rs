@@ -9,186 +9,31 @@ use crate::polynomial::poly_from_field_and_integers;
 use crate::{circuit::Node, circuit_field::CircuitField};
 use circuit::{Circuit, Operation::*};
 
-use std::ops::Neg;
-
-use polynomial::Polynomial;
 use qap::QAP;
 fn main() {
-    // let field = CircuitField(13);
-    // // let zero = field.element(0);
-    // // let one = field.element(1);
-    // let w_0 = field.element(3.clone());
-    // let w_1 = field.element(4.clone());
-    // let w_2 = field.element(2.clone());
-
-    // let instructions = vec![
-    //     Node::constant(w_0.clone()),
-    //     Node::constant(w_1.clone()),
-    //     Node::constant(w_2.clone()),
-    //     // w_0 * w_1
-    //     Node::operation(Multiply, 0, 1), // v1 // idx 4
-    //     // v_1 * w_2
-    //     Node::operation(Multiply, 2, 3), // v2 // idx 5
-    // ];
-
-    // let circuit = Circuit::new(instructions, field.clone());
-    // let (_, r1cs) = circuit.calculate_with_trace();
-
-    // println!("r1cs {:?}", r1cs.a);
-
-    // let qap = QAP::new(r1cs, field.clone()).unwrap();
-
-    // // println!("{:?}", r1cs.b);
-
-    // // // A = np.array([[0,0,1,0,0,0,0,0],
-    // // //     [0,0,0,0,1,0,0,0],
-    // // //     [0,0,0,0,0,0,1,0]])
-
-    // // // B = np.array([[0,0,0,1,0,0,0,0],
-    // // //         [0,0,0,0,0,1,0,0],
-    // // //         [0,0,0,0,0,0,0,1]])
-
-    // // // C = np.array([[0,0,0,0,0,0,1,0],
-    // // //         [0,0,0,0,0,0,0,1],
-    // // //         [0,1,0,0,0,0,0,0]])
-
-    // // // Witness should appear as:
-    // // // [1, out, x, y, z, u, v1, v2].
-
-    // // let a = vec![
-    // //     vec![
-    // //         zero.clone(),
-    // //         zero.clone(),
-    // //         one.clone(),
-    // //         zero.clone(),
-    // //         zero.clone(),
-    // //         zero.clone(),
-    // //         zero.clone(),
-    // //         zero.clone(),
-    // //     ],
-    // //     vec![
-    // //         zero.clone(),
-    // //         zero.clone(),
-    // //         zero.clone(),
-    // //         zero.clone(),
-    // //         one.clone(),
-    // //         zero.clone(),
-    // //         zero.clone(),
-    // //         zero.clone(),
-    // //     ],
-    // //     vec![
-    // //         zero.clone(),
-    // //         zero.clone(),
-    // //         zero.clone(),
-    // //         zero.clone(),
-    // //         zero.clone(),
-    // //         zero.clone(),
-    // //         one.clone(),
-    // //         zero.clone(),
-    // //     ],
-    // // ];
-
-    // // let b = vec![
-    // //     vec![
-    // //         zero.clone(),
-    // //         zero.clone(),
-    // //         zero.clone(),
-    // //         one.clone(),
-    // //         zero.clone(),
-    // //         zero.clone(),
-    // //         zero.clone(),
-    // //         zero.clone(),
-    // //     ],
-    // //     vec![
-    // //         zero.clone(),
-    // //         zero.clone(),
-    // //         zero.clone(),
-    // //         zero.clone(),
-    // //         zero.clone(),
-    // //         one.clone(),
-    // //         zero.clone(),
-    // //         zero.clone(),
-    // //     ],
-    // //     vec![
-    // //         zero.clone(),
-    // //         zero.clone(),
-    // //         zero.clone(),
-    // //         zero.clone(),
-    // //         zero.clone(),
-    // //         zero.clone(),
-    // //         zero.clone(),
-    // //         one.clone(),
-    // //     ],
-    // // ];
-    // // let c = vec![
-    // //     vec![
-    // //         zero.clone(),
-    // //         zero.clone(),
-    // //         zero.clone(),
-    // //         zero.clone(),
-    // //         zero.clone(),
-    // //         zero.clone(),
-    // //         one.clone(),
-    // //         zero.clone(),
-    // //     ],
-    // //     vec![
-    // //         zero.clone(),
-    // //         zero.clone(),
-    // //         zero.clone(),
-    // //         zero.clone(),
-    // //         zero.clone(),
-    // //         zero.clone(),
-    // //         zero.clone(),
-    // //         one.clone(),
-    // //     ],
-    // //     vec![
-    // //         zero.clone(),
-    // //         one.clone(),
-    // //         zero.clone(),
-    // //         zero.clone(),
-    // //         zero.clone(),
-    // //         zero.clone(),
-    // //         zero.clone(),
-    // //         zero.clone(),
-    // //     ],
-    // // ];
-
-    // // let v1 = field.element(12); // x * y == 12
-    // // let v2 = field.element(10); // z * u == 10
-    // // let out = field.element(120); // v1 * v2 == 120
-
-    // // let expected_witness = vec![one, out.clone(), x, y, z, u, v1, v2];
-
-    // // assert_eq!(result, Some(out));
-    // // assert_eq!(r1cs.a, a);
-    // // assert_eq!(r1cs.b, b);
-    // // assert_eq!(r1cs.c, c);
-    // // assert_eq!(r1cs.witness, expected_witness);
-
-    // // let lhs = Polynomial::new(vec![
-    // //     field.element(1),
-    // //     field.element(1),
-    // //     field.element(5),
-    // //     field.element(3),
-    // // ]);
-    // // let rhs = Polynomial::new(vec![field.element(3), field.element(5), field.element(2)]);
     let field = CircuitField(13);
+    // let zero = field.element(0);
+    // let one = field.element(1);
+    let w_0 = field.element(3.clone());
+    let w_1 = field.element(4.clone());
+    let w_2 = field.element(2.clone());
 
-
-    let points = vec![
-        (field.clone().element(5), field.clone().element(1)),
-        (field.clone().element(7), field.clone().element(0)),
+    let instructions = vec![
+        Node::constant(w_0.clone()),
+        Node::constant(w_1.clone()),
+        Node::constant(w_2.clone()),
+        // w_0 * w_1
+        Node::operation(Multiply, 0, 1), // v1 // idx 4
+        // v_1 * w_2
+        Node::operation(Multiply, 2, 3), // v2 // idx 5
     ];
 
-    let poly = Polynomial::<CircuitFieldElement>::lagrange_interpolation(
-        points,
-        field.clone(),
-    );
+    let circuit = Circuit::new(instructions, field.clone());
+    let (_, r1cs) = circuit.calculate_with_trace();
 
-    // let expected_poly = poly_from_field_and_integers(vec![2, 1], field);
-    let expected_poly = poly_from_field_and_integers(vec![10, 6], field);
+    let qap = QAP::new(r1cs, field.clone()).unwrap();
 
-    assert_eq!(poly, expected_poly);
+    println!("qap poly a are: {:?}", qap.a);
 }
 
 #[test]

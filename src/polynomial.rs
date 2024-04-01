@@ -12,6 +12,7 @@ impl<F: Add + Mul + Neg<Output = F> + FieldElementZero + FieldElementOne> Polyno
     fn is_zero(&self) -> bool {
         self.0.is_empty() || self.0.iter().all(|coeff| coeff.is_zero())
     }
+
     fn leading_coefficient(&self) -> Option<&F> {
         self.0.last().clone()
     }
@@ -30,8 +31,7 @@ impl<F: Add + Mul + Neg<Output = F> + FieldElementZero + FieldElementOne> Polyno
 
             for (j, (x_j, _)) in points.iter().enumerate() {
                 if i != j {
-                    numerator =
-                        numerator * Polynomial::new(vec![-x_j.clone(), one.clone()]);
+                    numerator = numerator * Polynomial::new(vec![-x_j.clone(), one.clone()]);
 
                     denominator = denominator * (x_i.clone() - x_j.clone());
                 }
