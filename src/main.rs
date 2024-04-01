@@ -174,14 +174,14 @@ fn main() {
     // // let rhs = Polynomial::new(vec![field.element(3), field.element(5), field.element(2)]);
     let field = CircuitField(13);
 
-    // let point1 = (field.element(2), field.element(4));
-    // let point2 = (field.element(1), field.element(3));
 
-    let point1 = (field.element(5), field.element(1));
-    let point2 = (field.element(7), field.element(0));
+    let points = vec![
+        (field.clone().element(5), field.clone().element(1)),
+        (field.clone().element(7), field.clone().element(0)),
+    ];
 
     let poly = Polynomial::<CircuitFieldElement>::lagrange_interpolation(
-        vec![point1, point2],
+        points,
         field.clone(),
     );
 

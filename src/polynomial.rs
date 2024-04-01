@@ -22,31 +22,27 @@ impl<F: Add + Mul + Neg<Output = F> + FieldElementZero + FieldElementOne> Polyno
     ) -> Polynomial<CircuitFieldElement> {
         let zero = field.element(0);
         let one = field.element(1);
-        let mut final_poly = Polynomial::new(vec![zero.clone()]);
+        let mut interpolation = Polynomial::new(vec![zero.clone()]);
 
         for (i, (x_i, y_i)) in points.iter().enumerate() {
-            let mut numerator_poly = Polynomial::new(vec![one.clone()]);
+            let mut numerator = Polynomial::new(vec![one.clone()]);
             let mut denominator = one.clone();
 
             for (j, (x_j, _)) in points.iter().enumerate() {
                 if i != j {
-                    numerator_poly =
-                        numerator_poly * Polynomial::new(vec![-x_j.clone(), one.clone()]);
+                    numerator =
+                        numerator * Polynomial::new(vec![-x_j.clone(), one.clone()]);
+
                     denominator = denominator * (x_i.clone() - x_j.clone());
                 }
             }
-
-            // let inv_denominator = denominator.invert();?\
             let denominator_poly = Polynomial::new(vec![denominator]);
-            let lagrange_basis_poly = numerator_poly / denominator_poly;
+            let lagrange_basis_poly = numerator / denominator_poly;
             // Represent y as a polynomial to multiply with other values here
             let y_polynomial = Polynomial::new(vec![y_i.clone()]);
-
-            // final_poly = final_poly + lagrange_basis_poly * y_i.clone();
-            final_poly = final_poly + lagrange_basis_poly * y_polynomial;
+            interpolation = interpolation + lagrange_basis_poly * y_polynomial;
         }
-
-        final_poly
+        interpolation
     }
 }
 
@@ -235,7 +231,7 @@ fn lagrange_inerpolation_2() {
 
     // Points from example in text
     let points = vec![
-        (field.clone().element(5), field.clone().element(5)),
+        (field.clone().element(5), field.clone().element(1)),
         (field.clone().element(7), field.clone().element(0)),
     ];
     let poly = Polynomial::<CircuitFieldElement>::lagrange_interpolation(points, field.clone());

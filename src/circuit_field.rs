@@ -269,12 +269,9 @@ fn adds() {
 
 #[test]
 fn subtracts_including_negative_case() {
-    // assert!(false)
     let field = CircuitField(8);
-
     let a = field.element(4);
     let b = field.element(5);
-
     assert_eq!(a - b, field.element(7));
 }
 
