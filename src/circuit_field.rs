@@ -2,6 +2,7 @@
 use rand::Rng;
 use std::cmp::Ordering;
 use std::fmt::Display;
+use std::hash::Hash;
 use std::ops::{AddAssign, Sub, SubAssign};
 use std::ops::{Add, Mul, Neg};
 
@@ -23,6 +24,13 @@ impl CircuitField {
         self.element(value)
     }
 }
+
+impl Hash for CircuitField {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.0.hash(state);
+    }
+}
+
 
 pub trait CicuitFieldInfo {
     fn modulus(&self) -> u64;
@@ -124,6 +132,13 @@ impl CircuitFieldElement {
             field: self.field.clone(),
             value
         }
+    }
+}
+
+impl Hash for CircuitFieldElement {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.field.hash(state);
+        self.value.hash(state);
     }
 }
 

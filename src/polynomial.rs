@@ -18,7 +18,7 @@ impl<F: Add + Mul + Neg<Output = F> + FieldElementZero + FieldElementOne> Polyno
     }
 
     pub fn lagrange_interpolation(
-        points: Vec<(CircuitFieldElement, CircuitFieldElement)>,
+        points: &Vec<(CircuitFieldElement, CircuitFieldElement)>,
         field: CircuitField,
     ) -> Polynomial<CircuitFieldElement> {
         let zero = field.element(0);
@@ -30,17 +30,21 @@ impl<F: Add + Mul + Neg<Output = F> + FieldElementZero + FieldElementOne> Polyno
             let mut denominator = one.clone();
 
             for (j, (x_j, _)) in points.iter().enumerate() {
-                if i != j {
+                if x_i != x_j {
                     numerator = numerator * Polynomial::new(vec![-x_j.clone(), one.clone()]);
-
                     denominator = denominator * (x_i.clone() - x_j.clone());
                 }
             }
+
             let denominator_poly = Polynomial::new(vec![denominator]);
             let lagrange_basis_poly = numerator / denominator_poly;
+
             // Represent y as a polynomial to multiply with other values here
             let y_polynomial = Polynomial::new(vec![y_i.clone()]);
-            interpolation = interpolation + lagrange_basis_poly * y_polynomial;
+            println!("Almost done: multiplying {} by {}, which gives: {}", lagrange_basis_poly.clone(), y_polynomial.clone(), lagrange_basis_poly.clone() * y_polynomial.clone());
+            println!("Done: adding to interpolation {}: mult result:  {}", interpolation, lagrange_basis_poly.clone() * y_polynomial.clone());
+
+            interpolation = interpolation + (lagrange_basis_poly * y_polynomial);
         }
         interpolation
     }
@@ -216,13 +220,29 @@ fn lagrange_inerpolation() {
     let point2 = (field.element(1), field.element(3));
 
     let poly = Polynomial::<CircuitFieldElement>::lagrange_interpolation(
-        vec![point1, point2],
+        &vec![point1, point2],
         field.clone(),
     );
 
     let expected_poly = poly_from_field_and_integers(vec![2, 1], field.clone());
 
     assert_eq!(poly, expected_poly);
+}
+#[test]
+fn lagrange_inerpolation_larger() {
+    let field = CircuitField(13);
+
+    let point1 = (field.element(2), field.element(4));
+    let point2 = (field.element(1), field.element(3));
+    let point3 = (field.element(7), field.element(11));
+
+    let poly = Polynomial::<CircuitFieldElement>::lagrange_interpolation(
+        &vec![point1, point2, point3],
+        field.clone(),
+    );
+
+    let expected = poly_from_field_and_integers(vec![3, 6, 7], field.clone());
+    assert_eq!(poly, expected);
 }
 
 #[test]
@@ -234,7 +254,15 @@ fn lagrange_inerpolation_2() {
         (field.clone().element(5), field.clone().element(1)),
         (field.clone().element(7), field.clone().element(0)),
     ];
-    let poly = Polynomial::<CircuitFieldElement>::lagrange_interpolation(points, field.clone());
-    let expected = poly_from_field_and_integers(vec![10, 6], field);
+    let points2 = vec![
+        (field.clone().element(5), field.clone().element(0)),
+        (field.clone().element(7), field.clone().element(1)),
+    ];
+
+    let poly = Polynomial::<CircuitFieldElement>::lagrange_interpolation(&points, field.clone());
+    let poly2 = Polynomial::<CircuitFieldElement>::lagrange_interpolation(&points2, field.clone());
+    let expected = poly_from_field_and_integers(vec![10, 6], field.clone());
+    let expected2 = poly_from_field_and_integers(vec![4, 7], field);
     assert_eq!(poly, expected);
+    assert_eq!(poly2, expected2);
 }

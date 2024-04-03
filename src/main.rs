@@ -5,83 +5,103 @@ pub mod qap;
 pub mod r1cs;
 
 use crate::circuit_field::CircuitFieldElement;
-use crate::polynomial::poly_from_field_and_integers;
+use crate::polynomial::{poly_from_field_and_integers, Polynomial};
 use crate::{circuit::Node, circuit_field::CircuitField};
 use circuit::{Circuit, Operation::*};
-
 use qap::QAP;
+
 fn main() {
+    // let field = CircuitField(13);
+    // // let zero = field.element(0);
+    // // let one = field.element(1);
+    // let w_0 = field.element(3.clone());
+    // let w_1 = field.element(4.clone());
+    // let w_2 = field.element(2.clone());
+
+    // let instructions = vec![
+    //     Node::constant(w_0.clone()),
+    //     Node::constant(w_1.clone()),
+    //     Node::constant(w_2.clone()),
+    //     // w_0 * w_1
+    //     Node::operation(Multiply, 0, 1), // v1 // idx 4
+    //     // v_1 * w_2
+    //     Node::operation(Multiply, 2, 3), // v2 // idx 5
+    // ];
+
+    // let circuit = Circuit::new(instructions, field.clone());
+    // let (_, r1cs) = circuit.calculate_with_trace();
+
+    // let qap = QAP::new(r1cs, field.clone()).unwrap();
+
+    // // println!("qap poly a are: {}", qap.a);
+
+    // qap.a.iter().for_each(|p| {
+    //     println!("{}", p);
+    // });
+
+
     let field = CircuitField(13);
-    // let zero = field.element(0);
-    // let one = field.element(1);
-    let w_0 = field.element(3.clone());
-    let w_1 = field.element(4.clone());
-    let w_2 = field.element(2.clone());
 
-    let instructions = vec![
-        Node::constant(w_0.clone()),
-        Node::constant(w_1.clone()),
-        Node::constant(w_2.clone()),
-        // w_0 * w_1
-        Node::operation(Multiply, 0, 1), // v1 // idx 4
-        // v_1 * w_2
-        Node::operation(Multiply, 2, 3), // v2 // idx 5
-    ];
+    let point1 = (field.element(2), field.element(4));
+    let point2 = (field.element(1), field.element(3));
+    let point3 = (field.element(7), field.element(11));
 
-    let circuit = Circuit::new(instructions, field.clone());
-    let (_, r1cs) = circuit.calculate_with_trace();
+    let poly = Polynomial::<CircuitFieldElement>::lagrange_interpolation(
+        &vec![point1, point2, point3],
+        field.clone(),
+    );
 
-    let qap = QAP::new(r1cs, field.clone()).unwrap();
+    let expected = poly_from_field_and_integers(vec![3, 6, 7], field.clone());
+    assert_eq!(poly, expected);
 
-    println!("qap poly a are: {:?}", qap.a);
 }
 
 #[test]
 fn three_factors_example_works() {
-    let number = 27;
-    let x = 3;
-    let unused_field = CircuitField(1);
+    let field = CircuitField(28);
+    let number = field.element(27);
+    let x = field.element(3);
 
     let instructions = vec![
-        Node::constant(x),
-        Node::constant(x),
+        Node::constant(x.clone()),
+        Node::constant(x.clone()),
         Node::operation(Multiply, 0, 1),
         Node::constant(x),
         Node::operation(Multiply, 2, 3),
     ];
 
-    let mut c = Circuit::new(instructions, unused_field);
+    let c = Circuit::new(instructions, field);
     assert_eq!(c.calculate(), Some(number));
 }
 
 #[test]
 fn addition() {
-    let number = 9;
-    let unused_field = CircuitField(1);
+    let field = CircuitField(10);
+    let number = field.element(9);
     let instructions = vec![
-        Node::constant(4),
-        Node::constant(5),
+        Node::constant(field.element(4)),
+        Node::constant(field.element(5)),
         Node::operation(Add, 0, 1),
     ];
 
-    let mut c = Circuit::new(instructions, unused_field);
+    let mut c = Circuit::new(instructions, field);
     assert_eq!(c.calculate(), Some(number));
 }
 
 #[test]
 fn addition_and_multiplication() {
-    let number = 81;
-    let unused_field = CircuitField(1);
+    let field = CircuitField(82);
+    let number = field.element(81);
 
     let instructions = vec![
-        Node::constant(4),
-        Node::constant(5),
+        Node::constant(field.element(4)),
+        Node::constant(field.element(5)),
         Node::operation(Add, 0, 1),
-        Node::constant(9),
+        Node::constant(field.element(9)),
         Node::operation(Multiply, 2, 3),
     ];
 
-    let mut c = Circuit::new(instructions, unused_field);
+    let mut c = Circuit::new(instructions, field);
     assert_eq!(c.calculate(), Some(number));
 }
 
@@ -122,17 +142,17 @@ fn addition_and_multiplication_with_modulus() {
 
 #[test]
 fn squares() {
-    let number = 36;
-    let unusedfield = CircuitField(13);
+    let field = CircuitField(37);
+    let number = field.element(36);
 
     let instructions = vec![
-        Node::constant(2),
-        Node::constant(3),
+        Node::constant(field.element(2)),
+        Node::constant(field.element(3)),
         Node::operation(Multiply, 0, 0), // 2 ^2
         Node::operation(Multiply, 1, 1), // 3^2
         Node::operation(Multiply, 2, 3), // 2^2 * 3^2
     ];
-    let mut c = Circuit::new(instructions, unusedfield);
+    let c = Circuit::new(instructions, field);
     assert_eq!(c.calculate(), Some(number));
 }
 
@@ -158,7 +178,8 @@ fn point_on_curve_circuit(
     x: CircuitFieldElement,
     y: CircuitFieldElement,
     field: CircuitField,
-) -> Circuit<CircuitFieldElement, CircuitField> {
+// ) -> Circuit<CircuitFieldElement, CircuitField> {
+) -> Circuit<CircuitField> {
     let instructions: Vec<Node<circuit_field::CircuitFieldElement>> = vec![
         Node::constant(field.element(1)),  // 0
         Node::constant(field.element(8)),  // 1
