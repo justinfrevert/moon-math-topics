@@ -4,56 +4,33 @@ pub mod polynomial;
 pub mod qap;
 pub mod r1cs;
 
-use crate::circuit_field::CircuitFieldElement;
-use crate::polynomial::{poly_from_field_and_integers, Polynomial};
 use crate::{circuit::Node, circuit_field::CircuitField};
+use crate::circuit_field::CircuitFieldElement;
 use circuit::{Circuit, Operation::*};
 use qap::QAP;
 
 fn main() {
-    // let field = CircuitField(13);
-    // // let zero = field.element(0);
-    // // let one = field.element(1);
-    // let w_0 = field.element(3.clone());
-    // let w_1 = field.element(4.clone());
-    // let w_2 = field.element(2.clone());
-
-    // let instructions = vec![
-    //     Node::constant(w_0.clone()),
-    //     Node::constant(w_1.clone()),
-    //     Node::constant(w_2.clone()),
-    //     // w_0 * w_1
-    //     Node::operation(Multiply, 0, 1), // v1 // idx 4
-    //     // v_1 * w_2
-    //     Node::operation(Multiply, 2, 3), // v2 // idx 5
-    // ];
-
-    // let circuit = Circuit::new(instructions, field.clone());
-    // let (_, r1cs) = circuit.calculate_with_trace();
-
-    // let qap = QAP::new(r1cs, field.clone()).unwrap();
-
-    // // println!("qap poly a are: {}", qap.a);
-
-    // qap.a.iter().for_each(|p| {
-    //     println!("{}", p);
-    // });
-
-
     let field = CircuitField(13);
+    let w_0 = field.element(3.clone());
+    let w_1 = field.element(4.clone());
+    let w_2 = field.element(2.clone());
 
-    let point1 = (field.element(2), field.element(4));
-    let point2 = (field.element(1), field.element(3));
-    let point3 = (field.element(7), field.element(11));
+    let instructions = vec![
+        Node::constant(w_0.clone()),
+        Node::constant(w_1.clone()),
+        Node::constant(w_2.clone()),
+        // w_0 * w_1
+        Node::operation(Multiply, 0, 1), // v1 // idx 4
+        // v_1 * w_2
+        Node::operation(Multiply, 2, 3), // v2 // idx 5
+    ];
 
-    let poly = Polynomial::<CircuitFieldElement>::lagrange_interpolation(
-        &vec![point1, point2, point3],
-        field.clone(),
-    );
+    let circuit = Circuit::new(instructions, field.clone());
+    let (_, r1cs) = circuit.calculate_with_trace();
 
-    let expected = poly_from_field_and_integers(vec![3, 6, 7], field.clone());
-    assert_eq!(poly, expected);
+    let qap = QAP::new(r1cs, field.clone()).unwrap();
 
+    println!("qap {:?}", qap);
 }
 
 #[test]
@@ -438,8 +415,36 @@ fn example_r1cs_more_terms() {
     assert_eq!(r1cs.witness, expected_witness);
 }
 
-#[test]
-fn qap_works() {
-    // Field must be larger than
-    let field = CircuitField(420);
-}
+// Might need verification to implement
+// #[test]
+// fn qap_works() {
+//     let field = CircuitField(13);
+//     let zero = field.element(0);
+//     let one = field.element(1);
+//     let w_0 = field.element(3.clone());
+//     let w_1 = field.element(4.clone());
+//     let w_2 = field.element(2.clone());
+
+//     let instructions = vec![
+//         Node::constant(w_0.clone()),
+//         Node::constant(w_1.clone()),
+//         Node::constant(w_2.clone()),
+//         // w_0 * w_1
+//         Node::operation(Multiply, 0, 1), // v1 // idx 4
+//         // v_1 * w_2
+//         Node::operation(Multiply, 2, 3), // v2 // idx 5
+//     ];
+
+//     let circuit = Circuit::new(instructions, field.clone());
+//     let (_, r1cs) = circuit.calculate_with_trace();
+
+//     let qap = QAP::new(r1cs, field.clone()).unwrap();
+
+//     let viewable_a: Vec<String> = qap.a.iter().map(|i| {
+//         format!("{}", i)
+//     }).collect();
+
+//     println!("qap poly a are: {:?}", viewable_a);
+
+
+// }
