@@ -10,6 +10,12 @@ use std::ops::{Add, Mul, Neg};
 // Field with sole value of modulus
 pub struct CircuitField(pub u64);
 
+pub trait Field<F> {
+    fn element(&self, value: u64) -> F;
+    #[cfg(feature = "proving")]
+    fn random_element(&self) -> F;
+}
+
 impl CircuitField {
     pub fn element(&self, value: u64) -> CircuitFieldElement {
         CircuitFieldElement {

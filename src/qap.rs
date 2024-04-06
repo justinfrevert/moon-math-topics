@@ -1,14 +1,6 @@
-use crate::{
-    circuit_field::CircuitFieldElement,
-    polynomial::Polynomial,
-    r1cs::R1CS,
-    CircuitField,
-};
+use crate::{circuit_field::CircuitFieldElement, polynomial::Polynomial, r1cs::R1CS, CircuitField};
 
-use std::{
-    collections::HashSet,
-    fmt::Debug,
-};
+use std::{collections::HashSet, fmt::Debug};
 
 struct InterpolationPoints {
     pub a: Vec<Vec<(CircuitFieldElement, CircuitFieldElement)>>,
@@ -84,7 +76,7 @@ impl QAP {
 
         let mut random_elements_set: HashSet<CircuitFieldElement> = HashSet::new();
 
-        for i in 0..constraint_count {
+        for _ in 0..constraint_count {
             let mut arbitrary_element = field.random_element();
             // let mut arbitrary_element = i;
 
@@ -153,22 +145,23 @@ impl QAP {
             .fold(one_polynomial, |acc, x| acc * x.clone())
     }
 
-    /// Determine the list of points (x, y) which should be used for interpolation for the proposed QAP
-    /// given the evaluation points for x values, assuming that the amount of evaluation points is equal to the amount of constraints in the circuit
-    fn determine_points(
-        x_evaluation_points: Vec<CircuitFieldElement>,
-        field: CircuitField,
-    ) -> Vec<(CircuitFieldElement, CircuitFieldElement)> {
-        // for (i, x_evaluation_point) in 0..x_evaluation_points.iter().enumerate() {
-        let mut points = vec![];
-        for x_evaluation_point in x_evaluation_points.iter() {
-            // For each evaluation point, we need to add an evaluation from 0..y
-            for i in 0..x_evaluation_points.len() {
-                let field_element_i = field.element(i.try_into().unwrap());
-                points.push((x_evaluation_point.clone(), field_element_i))
-            }
-        }
-        points
+    pub fn verify(&self, field: CircuitField) -> bool {
+        let z = Polynomial::new(vec![field.element(0)]);
+
+        // Turn list of polynomials for a, b, and c into a single polynomial each
+        let (a, b, c) = self.a
+            .iter()
+            .zip(self.b.iter().zip(self.c.iter()))
+            .fold((z.clone(), z.clone(), z), |acc, (a, (b, c))| {
+                let a = acc.0 + a.clone();
+                let b = acc.1 + b.clone();
+                let c = acc.2 + c.clone();
+                (a, b, c)
+            });
+
+        let qap_evaluation = a * b - c;
+        let (_, polynomial_remainder) = qap_evaluation.div_rem(self.target_polynomial.clone());        
+        polynomial_remainder.is_zero()
     }
 }
 
@@ -193,30 +186,47 @@ fn gets_target_polynomials() {
 }
 
 #[test]
-fn determines_correct_interpolation_points() {
-    let field = CircuitField(13);
-    let x_evaluation_points = vec![field.element(5), field.element(7)];
-    let points = QAP::determine_points(x_evaluation_points, field.clone());
-    let expected = vec![
-        (field.element(5), field.element(0)),
-        (field.element(5), field.element(1)),
-        (field.element(7), field.element(0)),
-        (field.element(7), field.element(1)),
-    ];
-
-    assert_eq!(points, expected)
-}
-
-#[test]
 fn determines_correct_interpolation_points_for_columns() {
     let field = CircuitField(13);
-    let column = 
-    vec![vec![field.element(0), field.element(0)], vec![field.element(0), field.element(0)], vec![field.element(1), field.element(0)], vec![field.element(0), field.element(0)], vec![field.element(0), field.element(1)], vec![field.element(0), field.element(0)]];
+    let column = vec![
+        vec![field.element(0), field.element(0)],
+        vec![field.element(0), field.element(0)],
+        vec![field.element(1), field.element(0)],
+        vec![field.element(0), field.element(0)],
+        vec![field.element(0), field.element(1)],
+        vec![field.element(0), field.element(0)],
+    ];
     // Example numbers and expected result from text
     let x_evaluation_points = vec![field.element(5), field.element(7)];
-    let column_interpolation = QAP::get_interpolation_points_per_column(column, &x_evaluation_points);
+    let column_interpolation =
+        QAP::get_interpolation_points_per_column(column, &x_evaluation_points);
 
-    let expected: Vec<Vec<(CircuitFieldElement, CircuitFieldElement)>> = vec![vec![(field.element(5), field.element(0)), (field.element(7), field.element(0))], vec![(field.element(5), field.element(0)), (field.element(7), field.element(0))], vec![(field.element(5), field.element(1)), (field.element(7), field.element(0))], vec![(field.element(5), field.element(0)), (field.element(7), field.element(0))], vec![(field.element(5), field.element(0)), (field.element(7), field.element(1))], vec![(field.element(5), field.element(0)), (field.element(7), field.element(0))]];
+    let expected: Vec<Vec<(CircuitFieldElement, CircuitFieldElement)>> = vec![
+        vec![
+            (field.element(5), field.element(0)),
+            (field.element(7), field.element(0)),
+        ],
+        vec![
+            (field.element(5), field.element(0)),
+            (field.element(7), field.element(0)),
+        ],
+        vec![
+            (field.element(5), field.element(1)),
+            (field.element(7), field.element(0)),
+        ],
+        vec![
+            (field.element(5), field.element(0)),
+            (field.element(7), field.element(0)),
+        ],
+        vec![
+            (field.element(5), field.element(0)),
+            (field.element(7), field.element(1)),
+        ],
+        vec![
+            (field.element(5), field.element(0)),
+            (field.element(7), field.element(0)),
+        ],
+    ];
 
     assert_eq!(column_interpolation, expected)
 }

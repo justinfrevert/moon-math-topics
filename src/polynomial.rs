@@ -1,15 +1,49 @@
 use crate::circuit_field::{CircuitField, CircuitFieldElement, FieldElementOne, FieldElementZero};
 use std::cmp::max;
 use std::fmt::Display;
-use std::ops::{Add, Div, Mul, Neg};
+use std::ops::{Add, Div, Mul, Neg, Sub};
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Polynomial<F>(Vec<F>);
+
+
+impl Polynomial<CircuitFieldElement> {
+    pub fn div_rem(self, divisor: Self) -> (Self, Self) {
+        let zero = self.0[0].zero();
+        let mut quotient = Polynomial::new(vec![zero; self.0.len() - divisor.0.len() + 1]);
+        let mut remainder: Polynomial<CircuitFieldElement> = self;
+
+        let divisor_leading_inv = divisor.leading_coefficient().unwrap().invert();
+
+        while !remainder.is_zero() && remainder.0.len() >= divisor.0.len() {
+            let cur_q_coeff = remainder.leading_coefficient().unwrap() * &divisor_leading_inv;
+            let cur_q_degree = remainder.0.len() - divisor.0.len();
+            quotient.0[cur_q_degree] = cur_q_coeff.clone();
+
+            for (i, div_coeff) in divisor.0.iter().enumerate() {
+                if cur_q_degree + i < remainder.0.len() {
+                    remainder.0[cur_q_degree + i] -= &(cur_q_coeff.clone() * div_coeff.clone());
+                }
+            }
+            remainder = remainder.trim();
+        }
+
+        (quotient, remainder)
+    }
+
+    fn trim(&self) -> Self {
+        let mut new_coeffs = self.0.clone();
+        while let Some(true) = new_coeffs.last().map(|c| c.is_zero()) {
+            new_coeffs.pop();
+        }
+        Polynomial::new(new_coeffs)
+    }
+}
 
 impl<F: Add + Mul + Neg<Output = F> + FieldElementZero + FieldElementOne> Polynomial<F> {
     pub fn new(coefficients: Vec<F>) -> Self {
         Polynomial(coefficients)
     }
-    fn is_zero(&self) -> bool {
+    pub fn is_zero(&self) -> bool {
         self.0.is_empty() || self.0.iter().all(|coeff| coeff.is_zero())
     }
 
@@ -108,7 +142,21 @@ impl Add for Polynomial<CircuitFieldElement> {
         }
         Polynomial::new(out)
     }
-    // fn
+}
+
+impl Sub for Polynomial<CircuitFieldElement> {
+    type Output = Polynomial<CircuitFieldElement>;
+    fn sub(self, rhs: Polynomial<CircuitFieldElement>) -> Polynomial<CircuitFieldElement> {
+        let mut out = vec![];
+        let zero = self.0[0].zero();
+        for i in 0..max(self.0.len(), rhs.0.len()) {
+            let left = self.0.get(i).unwrap_or(&zero);
+            let right = rhs.0.get(i).unwrap_or(&zero);
+
+            out.push(left.clone() - right.clone());
+        }
+        Polynomial::new(out)
+    }
 }
 
 // impl<F: Add + Mul + Div + Neg<Output = F> + FieldElementZero + Clone> Div for Polynomial<F> {
@@ -257,3 +305,14 @@ fn lagrange_inerpolation_2() {
     assert_eq!(poly3, expected3);
 }
 
+// #[test]
+// fn subtracts() {
+//     // 3x^2+8x+10
+//     //  2x^2+2+2
+
+//     let field = CircuitField(13);
+//     let a = poly_from_field_and_integers(vec![10, 8, 3], field.clone());
+//     let b = poly_from_field_and_integers(vec![2, 2, 2], field.clone());
+
+//     assert_eq!(a - b, poly_from_field_and_integers(vec![6, 8, 1], field));
+// }

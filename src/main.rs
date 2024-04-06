@@ -3,7 +3,12 @@ pub mod circuit_field;
 pub mod polynomial;
 pub mod qap;
 pub mod r1cs;
+mod groth16;
 
+use groth16::Groth16;
+
+use crate::polynomial::Polynomial;
+use crate::r1cs::R1CS;
 use crate::{circuit::Node, circuit_field::CircuitField};
 use crate::circuit_field::CircuitFieldElement;
 use circuit::{Circuit, Operation::*};
@@ -30,7 +35,10 @@ fn main() {
 
     let qap = QAP::new(r1cs, field.clone()).unwrap();
 
-    println!("qap {:?}", qap);
+    qap.verify(field);
+
+    let groth16_params = Groth16::setup();
+
 }
 
 #[test]
@@ -261,6 +269,56 @@ fn simple_circuit_with_example_witness() {
     assert_eq!(result, Some(field.element(4223)));
 }
 
+#[test]
+fn subtract_circuit() {
+    assert!(false)
+}
+
+
+#[test]
+fn boolean_circuit() {
+    let field = CircuitField(13);
+
+    let x = field.element(41);
+    let y = field.element(103);
+
+    // x^2 y
+    let instructions = vec![
+        Node::constant(x),
+        Node::constant(y),
+        Node::operation(Multiply, 0, 1),
+    ];
+
+    let circuit = Circuit::new(instructions, field.clone());
+    let zero = field.element(0);
+    let one = field.element(1);
+
+    let (result, r1cs) = circuit.calculate_with_trace();
+
+    // [1, out, x, y].
+    // A is [0, 0, 1, 0], because x is present, and none of the other variables are.
+    // B is [0, 0, 0, 1] because the variables in the right hand side are just y, and
+    // C is [0, 1, 0, 0] because we only have the out variable.
+
+    // Witness should appear as:
+    // [1, 4223, 41, 103], or [1, out, x, y].
+    let a = vec![[zero.clone(), zero.clone(), one.clone(), zero.clone()]];
+    let b = vec![[zero.clone(), zero.clone(), zero.clone(), one.clone()]];
+    let c = vec![[zero.clone(), one.clone(), zero.clone(), zero]];
+    let expected_witness = vec![
+        field.element(1),
+        field.element(4223),
+        field.element(41),
+        field.element(103),
+    ];
+
+    assert_eq!(r1cs.a, a);
+    assert_eq!(r1cs.b, b);
+    assert_eq!(r1cs.c, c);
+    assert_eq!(r1cs.witness, expected_witness);
+    assert_eq!(result, Some(field.element(4223)));
+}
+
 // Example from rareskills book x * y * z * u
 #[test]
 fn example_r1cs_more_terms() {
@@ -288,21 +346,6 @@ fn example_r1cs_more_terms() {
 
     let mut circuit = Circuit::new(instructions, field.clone());
     let (result, r1cs) = circuit.calculate_with_trace();
-
-    // A = np.array([[0,0,1,0,0,0,0,0],
-    //     [0,0,0,0,1,0,0,0],
-    //     [0,0,0,0,0,0,1,0]])
-
-    // B = np.array([[0,0,0,1,0,0,0,0],
-    //         [0,0,0,0,0,1,0,0],
-    //         [0,0,0,0,0,0,0,1]])
-
-    // C = np.array([[0,0,0,0,0,0,1,0],
-    //         [0,0,0,0,0,0,0,1],
-    //         [0,1,0,0,0,0,0,0]])
-
-    // Witness should appear as:
-    // [1, out, x, y, z, u, v1, v2].
 
     let a = vec![
         vec![
@@ -415,36 +458,54 @@ fn example_r1cs_more_terms() {
     assert_eq!(r1cs.witness, expected_witness);
 }
 
-// Might need verification to implement
-// #[test]
-// fn qap_works() {
-//     let field = CircuitField(13);
-//     let zero = field.element(0);
-//     let one = field.element(1);
-//     let w_0 = field.element(3.clone());
-//     let w_1 = field.element(4.clone());
-//     let w_2 = field.element(2.clone());
+#[test]
+fn qap_works() {
+    let field = CircuitField(13);
+    let w_0 = field.element(3.clone());
+    let w_1 = field.element(4.clone());
+    let w_2 = field.element(2.clone());
 
-//     let instructions = vec![
-//         Node::constant(w_0.clone()),
-//         Node::constant(w_1.clone()),
-//         Node::constant(w_2.clone()),
-//         // w_0 * w_1
-//         Node::operation(Multiply, 0, 1), // v1 // idx 4
-//         // v_1 * w_2
-//         Node::operation(Multiply, 2, 3), // v2 // idx 5
-//     ];
+    let instructions = vec![
+        Node::constant(w_0.clone()),
+        Node::constant(w_1.clone()),
+        Node::constant(w_2.clone()),
+        // w_0 * w_1
+        Node::operation(Multiply, 0, 1), // v1 // idx 4
+        // v_1 * w_2
+        Node::operation(Multiply, 2, 3), // v2 // idx 5
+    ];
 
-//     let circuit = Circuit::new(instructions, field.clone());
-//     let (_, r1cs) = circuit.calculate_with_trace();
+    let circuit = Circuit::new(instructions, field.clone());
+    let (_, r1cs) = circuit.calculate_with_trace();
+    let qap = QAP::new(r1cs, field.clone()).unwrap();
+    assert!(qap.verify(field));
+}
 
-//     let qap = QAP::new(r1cs, field.clone()).unwrap();
+#[test]
+fn qap_does_not_verify_false_proof() {
+    let field = CircuitField(13);
+    let w_0 = field.element(3.clone());
+    let w_1 = field.element(4.clone());
+    let w_2 = field.element(2.clone());
 
-//     let viewable_a: Vec<String> = qap.a.iter().map(|i| {
-//         format!("{}", i)
-//     }).collect();
+    let instructions = vec![
+        Node::constant(w_0.clone()),
+        Node::constant(w_1.clone()),
+        Node::constant(w_2.clone()),
+        // w_0 * w_1
+        Node::operation(Multiply, 0, 1), // v1 // idx 4
+        // v_1 * w_2
+        Node::operation(Multiply, 2, 3), // v2 // idx 5
+    ];
 
-//     println!("qap poly a are: {:?}", viewable_a);
+    let circuit = Circuit::new(instructions, field.clone());
+    let (_, mut r1cs) = circuit.calculate_with_trace();
 
+    r1cs.b[0][1] = field.element(1);
+    r1cs.b[0][2] = field.element(1);
+    r1cs.b[0][3] = field.element(1);
 
-// }
+    let qap = QAP::new(r1cs, field.clone()).unwrap();
+
+    assert_eq!(qap.verify(field), false);
+}
