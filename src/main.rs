@@ -5,20 +5,18 @@ pub mod qap;
 pub mod r1cs;
 mod groth16;
 
+use crypto_bigint::U512;
 use groth16::Groth16;
 
-use crate::polynomial::Polynomial;
-use crate::r1cs::R1CS;
-use crate::{circuit::Node, circuit_field::CircuitField};
-use crate::circuit_field::CircuitFieldElement;
+use crate::{circuit::Node, circuit_field::{CircuitField, CircuitFieldElement}};
 use circuit::{Circuit, Operation::*};
 use qap::QAP;
 
 fn main() {
-    let field = CircuitField(13);
-    let w_0 = field.element(3.clone());
-    let w_1 = field.element(4.clone());
-    let w_2 = field.element(2.clone());
+    let field = CircuitField(U512::from_u32(13));
+    let w_0 = field.element(U512::from_u32(3));
+    let w_1 = field.element(U512::from_u32(4));
+    let w_2 = field.element(U512::from_u32(2));
 
     let instructions = vec![
         Node::constant(w_0.clone()),
@@ -34,24 +32,29 @@ fn main() {
     let (_, r1cs) = circuit.calculate_with_trace();
 
     let qap = QAP::new(r1cs, field.clone()).unwrap();
-
+    // println!("QAP: {:?}", qap);
     qap.verify(field);
 
-    let groth16_params = Groth16::setup();
+    let num_rows = 5;
+    let num_columns = 5;
+
+    let groth16_params = Groth16::setup(qap, num_rows, num_columns);
 
 }
 
 #[test]
 fn three_factors_example_works() {
-    let field = CircuitField(28);
-    let number = field.element(27);
-    let x = field.element(3);
+    let field = CircuitField(U512::from_u32(28));
+    let number = field.element(U512::from_u32(27));
+    let x = field.element(U512::from_u32(3));
+    let y = field.element(U512::from_u32(4));
+    let z = field.element(U512::from_u32(5));
 
     let instructions = vec![
-        Node::constant(x.clone()),
-        Node::constant(x.clone()),
-        Node::operation(Multiply, 0, 1),
         Node::constant(x),
+        Node::constant(y),
+        Node::operation(Multiply, 0, 1),
+        Node::constant(z),
         Node::operation(Multiply, 2, 3),
     ];
 
@@ -61,11 +64,11 @@ fn three_factors_example_works() {
 
 #[test]
 fn addition() {
-    let field = CircuitField(10);
-    let number = field.element(9);
+    let field = CircuitField(U512::from_u32(10));
+    let number = field.element(U512::from_u32(9));
     let instructions = vec![
-        Node::constant(field.element(4)),
-        Node::constant(field.element(5)),
+        Node::constant(field.element(U512::from_u32(4))),
+        Node::constant(field.element(U512::from_u32(5))),
         Node::operation(Add, 0, 1),
     ];
 
@@ -75,14 +78,14 @@ fn addition() {
 
 #[test]
 fn addition_and_multiplication() {
-    let field = CircuitField(82);
-    let number = field.element(81);
+    let field = CircuitField(U512::from_u32(82));
+    let number = field.element(U512::from_u32(81));
 
     let instructions = vec![
-        Node::constant(field.element(4)),
-        Node::constant(field.element(5)),
+        Node::constant(field.element(U512::from_u32(4))),
+        Node::constant(field.element(U512::from_u32(5))),
         Node::operation(Add, 0, 1),
-        Node::constant(field.element(9)),
+        Node::constant(field.element(U512::from_u32(9))),
         Node::operation(Multiply, 2, 3),
     ];
 
@@ -92,9 +95,9 @@ fn addition_and_multiplication() {
 
 #[test]
 fn with_generic_types() {
-    let field = CircuitField(13);
-    let x = field.element(3);
-    let number = field.element(1);
+    let field = CircuitField(U512::from_u32(13));
+    let x = field.element(U512::from_u32(3));
+    let number = field.element(U512::from_u32(1));
 
     let instructions = vec![
         Node::constant(x.clone()),
@@ -110,14 +113,14 @@ fn with_generic_types() {
 
 #[test]
 fn addition_and_multiplication_with_modulus() {
-    let field = CircuitField(13);
-    let number = field.element(81);
+    let field = CircuitField(U512::from_u32(13));
+    let number = field.element(U512::from_u32(81));
 
     let instructions = vec![
-        Node::constant(field.element(4)),
-        Node::constant(field.element(5)),
+        Node::constant(field.element(U512::from_u32(4))),
+        Node::constant(field.element(U512::from_u32(5))),
         Node::operation(Add, 0, 1),
-        Node::constant(field.element(9)),
+        Node::constant(field.element(U512::from_u32(9))),
         Node::operation(Multiply, 2, 3),
     ];
 
@@ -127,12 +130,12 @@ fn addition_and_multiplication_with_modulus() {
 
 #[test]
 fn squares() {
-    let field = CircuitField(37);
-    let number = field.element(36);
+    let field = CircuitField(U512::from_u32(37));
+    let number = field.element(U512::from_u32(36));
 
     let instructions = vec![
-        Node::constant(field.element(2)),
-        Node::constant(field.element(3)),
+        Node::constant(field.element(U512::from_u32(2))),
+        Node::constant(field.element(U512::from_u32(3))),
         Node::operation(Multiply, 0, 0), // 2 ^2
         Node::operation(Multiply, 1, 1), // 3^2
         Node::operation(Multiply, 2, 3), // 2^2 * 3^2
@@ -143,12 +146,12 @@ fn squares() {
 
 #[test]
 fn squares_with_modulus() {
-    let field = CircuitField(9);
-    let number = field.element(36);
+    let field = CircuitField(U512::from_u32(9));
+    let number = field.element(U512::from_u32(36));
 
     let instructions = vec![
-        Node::constant(field.element(2)),
-        Node::constant(field.element(3)),
+        Node::constant(field.element(U512::from_u32(2))),
+        Node::constant(field.element(U512::from_u32(3))),
         Node::operation(Multiply, 0, 0), // 2 ^2
         Node::operation(Multiply, 1, 1), // 3^2
         Node::operation(Multiply, 2, 3), // 2^2 * 3^2
@@ -166,12 +169,12 @@ fn point_on_curve_circuit(
 // ) -> Circuit<CircuitFieldElement, CircuitField> {
 ) -> Circuit<CircuitField> {
     let instructions: Vec<Node<circuit_field::CircuitFieldElement>> = vec![
-        Node::constant(field.element(1)),  // 0
-        Node::constant(field.element(8)),  // 1
+        Node::constant(field.element(U512::from_u32(1))),  // 0
+        Node::constant(field.element(U512::from_u32(8))),  // 1
         Node::constant(x),                 // 2
         Node::constant(y),                 // 3
-        Node::constant(field.element(10)), // 4
-        Node::constant(field.element(12)), // 5
+        Node::constant(field.element(U512::from_u32(10))), // 4
+        Node::constant(field.element(U512::from_u32(12))), // 5
         // Initial multiplications
         Node::operation(Multiply, 2, 2), // 1. x * x // idx 6
         Node::operation(Multiply, 3, 3), // 2. y * y
@@ -190,15 +193,15 @@ fn point_on_curve_circuit(
 #[test]
 fn point_on_curve_circuit_works() {
     // From text: the tiny jub-jub curve is considered over the prime field \mathbb{F}_{13}
-    let field = CircuitField(13);
+    let field = CircuitField(U512::from_u32(13));
     // 0 = 1 + 8 · x^2 · y^2 + 10 · x^2 + 12y^2
-    let expected_result = field.element(0);
+    let expected_result = field.element(U512::from_u32(0));
 
     // Some points to test: (1,2), (1, 11), (4, 0), (5,2) (5,11), (6,5), (6,8), ...... (12,8)
-    let circuit_1_2 = point_on_curve_circuit(field.element(1), field.element(2), field.clone());
-    let circuit_1_11 = point_on_curve_circuit(field.element(1), field.element(11), field.clone());
+    let circuit_1_2 = point_on_curve_circuit(field.element(U512::from_u32(1)), field.element(U512::from_u32(2)), field.clone());
+    let circuit_1_11 = point_on_curve_circuit(field.element(U512::from_u32(1)), field.element(U512::from_u32(11)), field.clone());
     // Doesn't work:
-    let circuit_4_0 = point_on_curve_circuit(field.element(4), field.element(0), field.clone());
+    let circuit_4_0 = point_on_curve_circuit(field.element(U512::from_u32(4)), field.element(U512::from_u32(0)), field.clone());
 
     assert_eq!(circuit_1_2.calculate(), Some(expected_result.clone()));
     assert_eq!(circuit_1_11.calculate(), Some(expected_result.clone()));
@@ -207,10 +210,10 @@ fn point_on_curve_circuit_works() {
 #[test]
 // Example from rareskills book
 fn simple_circuit() {
-    let field = CircuitField(13);
+    let field = CircuitField(U512::from_u32(13));
 
-    let x = field.element(2);
-    let y = field.element(3);
+    let x = field.element(U512::from_u32(2));
+    let y = field.element(U512::from_u32(3));
 
     // x^2 y
     let instructions = vec![
@@ -221,16 +224,16 @@ fn simple_circuit() {
     ];
     let c = Circuit::new(instructions, field.clone());
 
-    assert_eq!(c.calculate(), Some(field.element(12)));
+    assert_eq!(c.calculate(), Some(field.element(U512::from_u32(12))));
 }
 
 #[test]
 // Example from rareskills book
 fn simple_circuit_with_example_witness() {
-    let field = CircuitField(13);
+    let field = CircuitField(U512::from_u32(13));
 
-    let x = field.element(41);
-    let y = field.element(103);
+    let x = field.element(U512::from_u32(41));
+    let y = field.element(U512::from_u32(103));
 
     // x^2 y
     let instructions = vec![
@@ -240,8 +243,8 @@ fn simple_circuit_with_example_witness() {
     ];
 
     let circuit = Circuit::new(instructions, field.clone());
-    let zero = field.element(0);
-    let one = field.element(1);
+    let zero = field.element(U512::from_u32(0));
+    let one = field.element(U512::from_u32(1));
 
     let (result, r1cs) = circuit.calculate_with_trace();
 
@@ -256,17 +259,17 @@ fn simple_circuit_with_example_witness() {
     let b = vec![[zero.clone(), zero.clone(), zero.clone(), one.clone()]];
     let c = vec![[zero.clone(), one.clone(), zero.clone(), zero]];
     let expected_witness = vec![
-        field.element(1),
-        field.element(4223),
-        field.element(41),
-        field.element(103),
+        field.element(U512::from_u32(1)),
+        field.element(U512::from_u32(4223)),
+        field.element(U512::from_u32(41)),
+        field.element(U512::from_u32(103)),
     ];
 
     assert_eq!(r1cs.a, a);
     assert_eq!(r1cs.b, b);
     assert_eq!(r1cs.c, c);
     assert_eq!(r1cs.witness, expected_witness);
-    assert_eq!(result, Some(field.element(4223)));
+    assert_eq!(result, Some(field.element(U512::from_u32(4223))));
 }
 
 #[test]
@@ -277,10 +280,10 @@ fn subtract_circuit() {
 
 #[test]
 fn boolean_circuit() {
-    let field = CircuitField(13);
+    let field = CircuitField(U512::from_u32(13));
 
-    let x = field.element(41);
-    let y = field.element(103);
+    let x = field.element(U512::from_u32(41));
+    let y = field.element(U512::from_u32(103));
 
     // x^2 y
     let instructions = vec![
@@ -290,8 +293,8 @@ fn boolean_circuit() {
     ];
 
     let circuit = Circuit::new(instructions, field.clone());
-    let zero = field.element(0);
-    let one = field.element(1);
+    let zero = field.element(U512::from_u32(0));
+    let one = field.element(U512::from_u32(1));
 
     let (result, r1cs) = circuit.calculate_with_trace();
 
@@ -306,29 +309,29 @@ fn boolean_circuit() {
     let b = vec![[zero.clone(), zero.clone(), zero.clone(), one.clone()]];
     let c = vec![[zero.clone(), one.clone(), zero.clone(), zero]];
     let expected_witness = vec![
-        field.element(1),
-        field.element(4223),
-        field.element(41),
-        field.element(103),
+        field.element(U512::from_u32(1)),
+        field.element(U512::from_u32(4223)),
+        field.element(U512::from_u32(41)),
+        field.element(U512::from_u32(103)),
     ];
 
     assert_eq!(r1cs.a, a);
     assert_eq!(r1cs.b, b);
     assert_eq!(r1cs.c, c);
     assert_eq!(r1cs.witness, expected_witness);
-    assert_eq!(result, Some(field.element(4223)));
+    assert_eq!(result, Some(field.element(U512::from_u32(4223))));
 }
 
 // Example from rareskills book x * y * z * u
 #[test]
 fn example_r1cs_more_terms() {
-    let field = CircuitField(42000);
-    let zero = field.element(0);
-    let one = field.element(1);
-    let x = field.element(3.clone());
-    let y = field.element(4.clone());
-    let z = field.element(2.clone());
-    let u = field.element(5.clone());
+    let field = CircuitField(U512::from_u32(42000));
+    let zero = field.element(U512::from_u32(0));
+    let one = field.element(U512::from_u32(1));
+    let x = field.element(U512::from_u32(3).clone());
+    let y = field.element(U512::from_u32(4).clone());
+    let z = field.element(U512::from_u32(2).clone());
+    let u = field.element(U512::from_u32(5).clone());
 
     let instructions = vec![
         // 4 inputs
@@ -445,9 +448,9 @@ fn example_r1cs_more_terms() {
         ],
     ];
 
-    let v1 = field.element(12); // x * y == 12
-    let v2 = field.element(10); // z * u == 10
-    let out = field.element(120); // v1 * v2 == 120
+    let v1 = field.element(U512::from_u32(12)); // x * y == 12
+    let v2 = field.element(U512::from_u32(10)); // z * u == 10
+    let out = field.element(U512::from_u32(120)); // v1 * v2 == 120
 
     let expected_witness = vec![one, out, x, y, z, u, v1, v2];
 
@@ -460,10 +463,10 @@ fn example_r1cs_more_terms() {
 
 #[test]
 fn qap_works() {
-    let field = CircuitField(13);
-    let w_0 = field.element(3.clone());
-    let w_1 = field.element(4.clone());
-    let w_2 = field.element(2.clone());
+    let field = CircuitField(U512::from_u32(13));
+    let w_0 = field.element(U512::from_u32(3).clone());
+    let w_1 = field.element(U512::from_u32(4).clone());
+    let w_2 = field.element(U512::from_u32(2).clone());
 
     let instructions = vec![
         Node::constant(w_0.clone()),
@@ -483,10 +486,10 @@ fn qap_works() {
 
 #[test]
 fn qap_does_not_verify_false_proof() {
-    let field = CircuitField(13);
-    let w_0 = field.element(3.clone());
-    let w_1 = field.element(4.clone());
-    let w_2 = field.element(2.clone());
+    let field = CircuitField(U512::from_u32(13));
+    let w_0 = field.element(U512::from_u32(3).clone());
+    let w_1 = field.element(U512::from_u32(4).clone());
+    let w_2 = field.element(U512::from_u32(2).clone());
 
     let instructions = vec![
         Node::constant(w_0.clone()),
@@ -501,9 +504,9 @@ fn qap_does_not_verify_false_proof() {
     let circuit = Circuit::new(instructions, field.clone());
     let (_, mut r1cs) = circuit.calculate_with_trace();
 
-    r1cs.b[0][1] = field.element(1);
-    r1cs.b[0][2] = field.element(1);
-    r1cs.b[0][3] = field.element(1);
+    r1cs.b[0][1] = field.element(U512::from_u32(1));
+    r1cs.b[0][2] = field.element(U512::from_u32(1));
+    r1cs.b[0][3] = field.element(U512::from_u32(1));
 
     let qap = QAP::new(r1cs, field.clone()).unwrap();
 

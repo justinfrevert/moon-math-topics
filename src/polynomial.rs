@@ -1,12 +1,25 @@
+use crypto_bigint::{ConstZero, U512};
+
 use crate::circuit_field::{CircuitField, CircuitFieldElement, FieldElementOne, FieldElementZero};
 use std::cmp::max;
 use std::fmt::Display;
 use std::ops::{Add, Div, Mul, Neg, Sub};
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Polynomial<F>(Vec<F>);
-
+pub struct Polynomial<F>(pub Vec<F>);
 
 impl Polynomial<CircuitFieldElement> {
+    pub fn evaluate(&self, point: CircuitFieldElement) -> CircuitFieldElement {
+        let mut total = self.0[0].zero();
+        let field = &self.0[0].field;
+        for (i, coefficient) in self.0.iter().enumerate() {
+            // total += pow(point, i) * coefficient
+            let current = CircuitFieldElement::new(U512::from_u128(i as u128), field.clone());
+            let current_field_element = CircuitFieldElement::new(point.pow(current), field.clone());
+            total += current_field_element * coefficient.clone()
+        }
+        total
+    }
+
     pub fn div_rem(self, divisor: Self) -> (Self, Self) {
         let zero = self.0[0].zero();
         let mut quotient = Polynomial::new(vec![zero; self.0.len() - divisor.0.len() + 1]);
@@ -55,8 +68,8 @@ impl<F: Add + Mul + Neg<Output = F> + FieldElementZero + FieldElementOne> Polyno
         points: &Vec<(CircuitFieldElement, CircuitFieldElement)>,
         field: CircuitField,
     ) -> Polynomial<CircuitFieldElement> {
-        let zero = field.element(0);
-        let one = field.element(1);
+        let zero = field.element(U512::ZERO);
+        let one = field.element(U512::ONE);
         let mut interpolation = Polynomial::new(vec![zero.clone()]);
 
         for (i, (x_i, y_i)) in points.iter().enumerate() {
@@ -208,14 +221,14 @@ pub fn poly_from_field_and_integers(
 ) -> Polynomial<CircuitFieldElement> {
     let mut elements = vec![];
     for c in coefficients {
-        elements.push(field.element(c))
+        elements.push(field.element(c.into()))
     }
     Polynomial(elements)
 }
 
 #[test]
 fn multiplication() {
-    let field = CircuitField(4200);
+    let field = CircuitField(U512::from_u32(4200));
     // let lhs = Polynomial::new(vec![1, 1, 5, 3]);
     let lhs = poly_from_field_and_integers(vec![1, 1, 5, 3], field.clone());
     let rhs = poly_from_field_and_integers(vec![3, 5, 2], field.clone());
@@ -228,16 +241,16 @@ fn multiplication() {
 
 #[test]
 fn adds() {
-    let field = CircuitField(4200);
-    let lft = Polynomial::new(vec![-field.element(1), field.element(2), field.element(1)]);
-    let rhs = Polynomial::new(vec![field.element(6), -field.element(3), field.element(2)]);
-    let ans = Polynomial::new(vec![field.element(5), -field.element(1), field.element(3)]);
+    let field = CircuitField(U512::from_u32(4200));
+    let lft = Polynomial::new(vec![-field.element(U512::from_u32(1)), field.element(U512::from_u32(2)), field.element(U512::from_u32(1))]);
+    let rhs = Polynomial::new(vec![field.element(U512::from_u32(6)), -field.element(U512::from_u32(3)), field.element(U512::from_u32(2))]);
+    let ans = Polynomial::new(vec![field.element(U512::from_u32(5)), -field.element(U512::from_u32(1)), field.element(U512::from_u32(3))]);
     assert_eq!(lft + rhs, ans);
 }
 
 #[test]
 fn divides_polynomials() {
-    let field = CircuitField(42);
+    let field = CircuitField(U512::from_u32(42));
     //  2x^2+5x+3
     let dividend = poly_from_field_and_integers(vec![2, 5, 3], field.clone());
     // x + 1
@@ -249,10 +262,10 @@ fn divides_polynomials() {
 
 #[test]
 fn lagrange_inerpolation() {
-    let field = CircuitField(13);
+    let field = CircuitField(U512::from_u32(13));
 
-    let point1 = (field.element(2), field.element(4));
-    let point2 = (field.element(1), field.element(3));
+    let point1 = (field.element(U512::from_u32(2)), field.element(U512::from_u32(4)));
+    let point2 = (field.element(U512::from_u32(1)), field.element(U512::from_u32(3)));
 
     let poly = Polynomial::<CircuitFieldElement>::lagrange_interpolation(
         &vec![point1, point2],
@@ -265,11 +278,11 @@ fn lagrange_inerpolation() {
 }
 #[test]
 fn lagrange_inerpolation_larger() {
-    let field = CircuitField(13);
+    let field = CircuitField(U512::from_u32(13));
 
-    let point1 = (field.element(2), field.element(4));
-    let point2 = (field.element(1), field.element(3));
-    let point3 = (field.element(7), field.element(11));
+    let point1 = (field.element(U512::from_u32(2)), field.element(U512::from_u32(4)));
+    let point2 = (field.element(U512::from_u32(1)), field.element(U512::from_u32(3)));
+    let point3 = (field.element(U512::from_u32(7)), field.element(U512::from_u32(11)));
 
     let poly = Polynomial::<CircuitFieldElement>::lagrange_interpolation(
         &vec![point1, point2, point3],
@@ -282,16 +295,16 @@ fn lagrange_inerpolation_larger() {
 
 #[test]
 fn lagrange_inerpolation_2() {
-    let field = CircuitField(13);
+    let field = CircuitField(U512::from_u32(13));
 
     // Points from example in text
     let points = vec![
-        (field.clone().element(5), field.clone().element(1)),
-        (field.clone().element(7), field.clone().element(0)),
+        (field.clone().element(U512::from_u32(5)), field.clone().element(U512::from_u32(1))),
+        (field.clone().element(U512::from_u32(7)), field.clone().element(U512::from_u32(0))),
     ];
     let points2 = vec![
-        (field.clone().element(5), field.clone().element(0)),
-        (field.clone().element(7), field.clone().element(1)),
+        (field.clone().element(U512::from_u32(5)), field.clone().element(U512::from_u32(0))),
+        (field.clone().element(U512::from_u32(7)), field.clone().element(U512::from_u32(1))),
     ];
 
     let poly = Polynomial::<CircuitFieldElement>::lagrange_interpolation(&points, field.clone());
@@ -310,7 +323,7 @@ fn lagrange_inerpolation_2() {
 //     // 3x^2+8x+10
 //     //  2x^2+2+2
 
-//     let field = CircuitField(13);
+//     let field = CircuitField(U512::from_u32(13));
 //     let a = poly_from_field_and_integers(vec![10, 8, 3], field.clone());
 //     let b = poly_from_field_and_integers(vec![2, 2, 2], field.clone());
 

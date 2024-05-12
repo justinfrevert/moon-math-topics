@@ -1,3 +1,5 @@
+use crypto_bigint::{ConstZero, Constants, U512};
+
 use crate::{circuit_field::CircuitFieldElement, polynomial::Polynomial, r1cs::R1CS, CircuitField};
 
 use std::{collections::HashSet, fmt::Debug};
@@ -66,9 +68,9 @@ pub struct QAP {
 impl QAP {
     pub fn new(r1cs: R1CS<CircuitFieldElement>, field: CircuitField) -> Result<Self, QAPError> {
         // TODO: remove unwrap
-        if field.0 < r1cs.a.len().try_into().unwrap() {
-            return Err(QAPError::FieldTooSmall);
-        }
+        // if field.0 < r1cs.a.len().try_into().unwrap() {
+        //     return Err(QAPError::FieldTooSmall);
+        // }
 
         let constraint_count = r1cs.a.len();
         let mut x_evaluation_points = vec![];
@@ -90,11 +92,11 @@ impl QAP {
             // Populate contraint polynomials for target polynomial
             constraint_polynomials.push(Polynomial::new(vec![
                 -arbitrary_element.clone(),
-                field.element(1),
+                field.element(U512::ONE),
             ]));
         }
 
-        let x_evaluation_points = vec![field.element(5), field.element(7)];
+        let x_evaluation_points = vec![field.element(U512::from_u32(5)), field.element(U512::from_u32(7))];
 
         let target_polynomial = Self::get_target_polynomial(constraint_polynomials, field.clone());
 
@@ -139,14 +141,14 @@ impl QAP {
         constraint_polynomials: Vec<Polynomial<CircuitFieldElement>>,
         field: CircuitField,
     ) -> Polynomial<CircuitFieldElement> {
-        let one_polynomial = Polynomial::new(vec![field.element(1)]);
+        let one_polynomial = Polynomial::new(vec![field.element(U512::ONE)]);
         constraint_polynomials
             .into_iter()
             .fold(one_polynomial, |acc, x| acc * x.clone())
     }
 
     pub fn verify(&self, field: CircuitField) -> bool {
-        let z = Polynomial::new(vec![field.element(0)]);
+        let z = Polynomial::new(vec![field.element(U512::ZERO)]);
 
         // Turn list of polynomials for a, b, and c into a single polynomial each
         let (a, b, c) = self.a
@@ -172,59 +174,59 @@ pub enum QAPError {
 
 #[test]
 fn gets_target_polynomials() {
-    let field = CircuitField(13);
+    let field = CircuitField(U512::from_u32(13));
     let polys = vec![
-        Polynomial::new(vec![-field.element(7), field.element(1)]),
-        Polynomial::new(vec![-field.element(5), field.element(1)]),
+        Polynomial::new(vec![-field.element(U512::from_u32(7)), field.element(U512::from_u32(1))]),
+        Polynomial::new(vec![-field.element(U512::from_u32(5)), field.element(U512::from_u32(1))]),
     ];
 
     let target_polynomial = QAP::get_target_polynomial(polys, field.clone());
     assert_eq!(
         target_polynomial,
-        Polynomial::new(vec![field.element(9), field.element(1), field.element(1)])
+        Polynomial::new(vec![field.element(U512::from_u32(9)), field.element(U512::from_u32(1)), field.element(U512::from_u32(1))])
     );
 }
 
 #[test]
 fn determines_correct_interpolation_points_for_columns() {
-    let field = CircuitField(13);
+    let field = CircuitField(U512::from_u32(13));
     let column = vec![
-        vec![field.element(0), field.element(0)],
-        vec![field.element(0), field.element(0)],
-        vec![field.element(1), field.element(0)],
-        vec![field.element(0), field.element(0)],
-        vec![field.element(0), field.element(1)],
-        vec![field.element(0), field.element(0)],
+        vec![field.element(U512::from_u32(0)), field.element(U512::from_u32(0))],
+        vec![field.element(U512::from_u32(0)), field.element(U512::from_u32(0))],
+        vec![field.element(U512::from_u32(1)), field.element(U512::from_u32(0))],
+        vec![field.element(U512::from_u32(0)), field.element(U512::from_u32(0))],
+        vec![field.element(U512::from_u32(0)), field.element(U512::from_u32(1))],
+        vec![field.element(U512::from_u32(0)), field.element(U512::from_u32(0))],
     ];
     // Example numbers and expected result from text
-    let x_evaluation_points = vec![field.element(5), field.element(7)];
+    let x_evaluation_points = vec![field.element(U512::from_u32(5)), field.element(U512::from_u32(7))];
     let column_interpolation =
         QAP::get_interpolation_points_per_column(column, &x_evaluation_points);
 
     let expected: Vec<Vec<(CircuitFieldElement, CircuitFieldElement)>> = vec![
         vec![
-            (field.element(5), field.element(0)),
-            (field.element(7), field.element(0)),
+            (field.element(U512::from_u32(5)), field.element(U512::from_u32(0))),
+            (field.element(U512::from_u32(7)), field.element(U512::from_u32(0))),
         ],
         vec![
-            (field.element(5), field.element(0)),
-            (field.element(7), field.element(0)),
+            (field.element(U512::from_u32(5)), field.element(U512::from_u32(0))),
+            (field.element(U512::from_u32(7)), field.element(U512::from_u32(0))),
         ],
         vec![
-            (field.element(5), field.element(1)),
-            (field.element(7), field.element(0)),
+            (field.element(U512::from_u32(5)), field.element(U512::from_u32(1))),
+            (field.element(U512::from_u32(7)), field.element(U512::from_u32(0))),
         ],
         vec![
-            (field.element(5), field.element(0)),
-            (field.element(7), field.element(0)),
+            (field.element(U512::from_u32(5)), field.element(U512::from_u32(0))),
+            (field.element(U512::from_u32(7)), field.element(U512::from_u32(0))),
         ],
         vec![
-            (field.element(5), field.element(0)),
-            (field.element(7), field.element(1)),
+            (field.element(U512::from_u32(5)), field.element(U512::from_u32(0))),
+            (field.element(U512::from_u32(7)), field.element(U512::from_u32(1))),
         ],
         vec![
-            (field.element(5), field.element(0)),
-            (field.element(7), field.element(0)),
+            (field.element(U512::from_u32(5)), field.element(U512::from_u32(0))),
+            (field.element(U512::from_u32(7)), field.element(U512::from_u32(0))),
         ],
     ];
 

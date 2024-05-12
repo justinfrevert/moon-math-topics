@@ -6,6 +6,9 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+blstrs = "0.7.1"
+crypto-bigint = { git = "https://github.com/RustCrypto/crypto-bigint", default-features = true, features = ["alloc"]}
+group = "0.13.0"
 rand = { version = "0.8.5", optional = true }
 
 [features]
