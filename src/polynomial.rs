@@ -228,7 +228,7 @@ pub fn poly_from_field_and_integers(
 
 #[test]
 fn multiplication() {
-    let field = CircuitField(U512::from_u32(4200));
+    let field = CircuitField(U512::from_u32(4201));
     // let lhs = Polynomial::new(vec![1, 1, 5, 3]);
     let lhs = poly_from_field_and_integers(vec![1, 1, 5, 3], field.clone());
     let rhs = poly_from_field_and_integers(vec![3, 5, 2], field.clone());
@@ -250,7 +250,7 @@ fn adds() {
 
 #[test]
 fn divides_polynomials() {
-    let field = CircuitField(U512::from_u32(42));
+    let field = CircuitField(U512::from_u32(43));
     //  2x^2+5x+3
     let dividend = poly_from_field_and_integers(vec![2, 5, 3], field.clone());
     // x + 1

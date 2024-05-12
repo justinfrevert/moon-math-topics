@@ -44,8 +44,8 @@ fn main() {
 
 #[test]
 fn three_factors_example_works() {
-    let field = CircuitField(U512::from_u32(28));
-    let number = field.element(U512::from_u32(27));
+    let field = CircuitField(U512::from_u32(29));
+    let number = field.element(U512::from_u32(2));
     let x = field.element(U512::from_u32(3));
     let y = field.element(U512::from_u32(4));
     let z = field.element(U512::from_u32(5));
@@ -77,15 +77,46 @@ fn addition() {
 }
 
 #[test]
-fn addition_and_multiplication() {
-    let field = CircuitField(U512::from_u32(82));
-    let number = field.element(U512::from_u32(81));
+fn multiplication() {
+    let field = CircuitField(U512::from_u32(5));
+    let answer = field.element(U512::from_u32(0));
 
     let instructions = vec![
         Node::constant(field.element(U512::from_u32(4))),
         Node::constant(field.element(U512::from_u32(5))),
+        Node::operation(Multiply, 0, 1),
+    ];
+
+    let mut c = Circuit::new(instructions, field);
+    assert_eq!(c.calculate(), Some(answer));
+}
+
+#[test]
+fn multiplication2() {
+    let field = CircuitField(U512::from_u32(69));
+    let answer = field.element(U512::from_u32(18));
+
+    let instructions = vec![
+        Node::constant(field.element(U512::from_u32(400))),
+        Node::constant(field.element(U512::from_u32(531))),
+        Node::operation(Multiply, 0, 1),
+    ];
+
+    let mut c = Circuit::new(instructions, field);
+    assert_eq!(c.calculate(), Some(answer));
+}
+
+#[test]
+fn addition_and_multiplication() {
+    let field = CircuitField(U512::from_u32(421));
+
+    let number = field.element(U512::from_u32(176));
+
+    let instructions = vec![
+        Node::constant(field.element(U512::from_u32(42))),
+        Node::constant(field.element(U512::from_u32(999))),
         Node::operation(Add, 0, 1),
-        Node::constant(field.element(U512::from_u32(9))),
+        Node::constant(field.element(U512::from_u32(3))),
         Node::operation(Multiply, 2, 3),
     ];
 
@@ -111,22 +142,6 @@ fn with_generic_types() {
     assert_eq!(c.calculate(), Some(number));
 }
 
-#[test]
-fn addition_and_multiplication_with_modulus() {
-    let field = CircuitField(U512::from_u32(13));
-    let number = field.element(U512::from_u32(81));
-
-    let instructions = vec![
-        Node::constant(field.element(U512::from_u32(4))),
-        Node::constant(field.element(U512::from_u32(5))),
-        Node::operation(Add, 0, 1),
-        Node::constant(field.element(U512::from_u32(9))),
-        Node::operation(Multiply, 2, 3),
-    ];
-
-    let mut c = Circuit::new(instructions, field);
-    assert_eq!(c.calculate(), Some(number));
-}
 
 #[test]
 fn squares() {
@@ -147,7 +162,7 @@ fn squares() {
 #[test]
 fn squares_with_modulus() {
     let field = CircuitField(U512::from_u32(9));
-    let number = field.element(U512::from_u32(36));
+    let number = field.element(U512::from_u32(0));
 
     let instructions = vec![
         Node::constant(field.element(U512::from_u32(2))),
@@ -248,6 +263,8 @@ fn simple_circuit_with_example_witness() {
 
     let (result, r1cs) = circuit.calculate_with_trace();
 
+    assert_eq!(result, Some(field.element(U512::from_u32(11))));
+
     // [1, out, x, y].
     // A is [0, 0, 1, 0], because x is present, and none of the other variables are.
     // B is [0, 0, 0, 1] because the variables in the right hand side are just y, and
@@ -260,7 +277,7 @@ fn simple_circuit_with_example_witness() {
     let c = vec![[zero.clone(), one.clone(), zero.clone(), zero]];
     let expected_witness = vec![
         field.element(U512::from_u32(1)),
-        field.element(U512::from_u32(4223)),
+        field.element(U512::from_u32(11)),
         field.element(U512::from_u32(41)),
         field.element(U512::from_u32(103)),
     ];
@@ -269,7 +286,7 @@ fn simple_circuit_with_example_witness() {
     assert_eq!(r1cs.b, b);
     assert_eq!(r1cs.c, c);
     assert_eq!(r1cs.witness, expected_witness);
-    assert_eq!(result, Some(field.element(U512::from_u32(4223))));
+    // assert_eq!(result, Some(field.element(U512::from_u32(4223))));
 }
 
 #[test]
@@ -325,7 +342,7 @@ fn boolean_circuit() {
 // Example from rareskills book x * y * z * u
 #[test]
 fn example_r1cs_more_terms() {
-    let field = CircuitField(U512::from_u32(42000));
+    let field = CircuitField(U512::from_u32(42001));
     let zero = field.element(U512::from_u32(0));
     let one = field.element(U512::from_u32(1));
     let x = field.element(U512::from_u32(3).clone());

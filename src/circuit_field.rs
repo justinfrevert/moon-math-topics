@@ -429,8 +429,18 @@ fn low_field() {
     );
 }
 
-
 #[test]
 fn pow_works() {
-    assert!(false);
+    let field = CircuitField(U512::from_u128(997003001));
+    let element = field.element(U512::from_u32(999));
+    let element_right = field.element(U512::from_u32(3));
+    assert_eq!(element.pow(element_right), U512::from_u128(997002999));
+}
+
+#[test]
+fn pow_with_modulus_works() {
+    let field = CircuitField(U512::from_u128(5));
+    let element = field.element(U512::from_u32(999));
+    let element_right = field.element(U512::from_u32(3));
+    assert_eq!(element.pow(element_right), U512::from_u128(4));
 }
