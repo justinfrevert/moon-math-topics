@@ -13,32 +13,32 @@ use circuit::{Circuit, Operation::*};
 use qap::QAP;
 
 fn main() {
-    let field = CircuitField(U512::from_u32(13));
-    let w_0 = field.element(U512::from_u32(3));
-    let w_1 = field.element(U512::from_u32(4));
-    let w_2 = field.element(U512::from_u32(2));
+    // let field = CircuitField(U512::from_u32(13));
+    // let w_0 = field.element(U512::from_u32(3));
+    // let w_1 = field.element(U512::from_u32(4));
+    // let w_2 = field.element(U512::from_u32(2));
 
-    let instructions = vec![
-        Node::constant(w_0.clone()),
-        Node::constant(w_1.clone()),
-        Node::constant(w_2.clone()),
-        // w_0 * w_1
-        Node::operation(Multiply, 0, 1), // v1 // idx 4
-        // v_1 * w_2
-        Node::operation(Multiply, 2, 3), // v2 // idx 5
-    ];
+    // let instructions = vec![
+    //     Node::constant(w_0.clone()),
+    //     Node::constant(w_1.clone()),
+    //     Node::constant(w_2.clone()),
+    //     // w_0 * w_1
+    //     Node::operation(Multiply, 0, 1), // v1 // idx 4
+    //     // v_1 * w_2
+    //     Node::operation(Multiply, 2, 3), // v2 // idx 5
+    // ];
 
-    let circuit = Circuit::new(instructions, field.clone());
-    let (_, r1cs) = circuit.calculate_with_trace();
+    // let circuit = Circuit::new(instructions, field.clone());
+    // let (_, r1cs) = circuit.calculate_with_trace();
 
-    let qap = QAP::new(r1cs, field.clone()).unwrap();
-    // println!("QAP: {:?}", qap);
-    qap.verify(field);
+    // let qap = QAP::new(r1cs, field.clone()).unwrap();
+    // // println!("QAP: {:?}", qap);
+    // qap.verify(field);
 
-    let num_rows = 5;
-    let num_columns = 5;
+    // let num_rows = 5;
+    // let num_columns = 5;
 
-    let groth16_params = Groth16::setup(qap, num_rows, num_columns);
+    // let groth16_params = Groth16::setup(qap, num_rows, num_columns);
 
 }
 

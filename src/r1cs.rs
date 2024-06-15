@@ -16,25 +16,64 @@ pub struct R1CS<F> {
     pub witness: Vec<F>,
 }
 
-impl R1CS<CircuitFieldElement> {
-    pub fn new(a: Vec<Vec<CircuitFieldElement>>, b: Vec<Vec<CircuitFieldElement>>, c: Vec<Vec<CircuitFieldElement>>, witness: Vec<CircuitFieldElement>) -> Self {
+// impl R1CS<CircuitFieldElement> {
+//     pub fn new(a: Vec<Vec<CircuitFieldElement>>, b: Vec<Vec<CircuitFieldElement>>, c: Vec<Vec<CircuitFieldElement>>, witness: Vec<CircuitFieldElement>) -> Self {
+//         R1CS { a, b, c, witness }
+//     }
+
+//     pub fn extract_column_from_a(&self, column_index: usize) -> Vec<CircuitFieldElement> {
+//         self.a.iter().map(|row| row[column_index].clone()).collect()
+//     }
+
+//     pub fn extract_column_from_b(&self, column_index: usize) -> Vec<CircuitFieldElement> {
+//         self.b.iter().map(|row| row[column_index].clone()).collect()
+//     }
+
+//     pub fn extract_column_from_c(&self, column_index: usize) -> Vec<CircuitFieldElement> {
+//         self.c.iter().map(|row| row[column_index].clone()).collect()
+//     }
+
+//     // Method to extract all columns from matrices 'a', 'b', and 'c'
+//     pub fn extract_all_columns(&self) -> (Vec<Vec<CircuitFieldElement>>, Vec<Vec<CircuitFieldElement>>, Vec<Vec<CircuitFieldElement>>) {
+//         let num_columns = if !self.a.is_empty() {
+//             self.a[0].len()
+//         } else {
+//             0 // Assuming all matrices have the same number of columns
+//         };
+
+//         let mut columns_a = Vec::with_capacity(num_columns);
+//         let mut columns_b = Vec::with_capacity(num_columns);
+//         let mut columns_c = Vec::with_capacity(num_columns);
+
+//         for column_index in 0..num_columns {
+//             columns_a.push(self.extract_column_from_a(column_index));
+//             columns_b.push(self.extract_column_from_b(column_index));
+//             columns_c.push(self.extract_column_from_c(column_index));
+//         }
+
+//         (columns_a, columns_b, columns_c)
+//     }
+// }
+
+impl<E: Clone> R1CS<E> {
+    pub fn new(a: Vec<Vec<E>>, b: Vec<Vec<E>>, c: Vec<Vec<E>>, witness: Vec<E>) -> Self {
         R1CS { a, b, c, witness }
     }
 
-    pub fn extract_column_from_a(&self, column_index: usize) -> Vec<CircuitFieldElement> {
+    pub fn extract_column_from_a(&self, column_index: usize) -> Vec<E> {
         self.a.iter().map(|row| row[column_index].clone()).collect()
     }
 
-    pub fn extract_column_from_b(&self, column_index: usize) -> Vec<CircuitFieldElement> {
+    pub fn extract_column_from_b(&self, column_index: usize) -> Vec<E> {
         self.b.iter().map(|row| row[column_index].clone()).collect()
     }
 
-    pub fn extract_column_from_c(&self, column_index: usize) -> Vec<CircuitFieldElement> {
+    pub fn extract_column_from_c(&self, column_index: usize) -> Vec<E> {
         self.c.iter().map(|row| row[column_index].clone()).collect()
     }
 
     // Method to extract all columns from matrices 'a', 'b', and 'c'
-    pub fn extract_all_columns(&self) -> (Vec<Vec<CircuitFieldElement>>, Vec<Vec<CircuitFieldElement>>, Vec<Vec<CircuitFieldElement>>) {
+    pub fn extract_all_columns(&self) -> (Vec<Vec<E>>, Vec<Vec<E>>, Vec<Vec<E>>) {
         let num_columns = if !self.a.is_empty() {
             self.a[0].len()
         } else {
@@ -54,6 +93,8 @@ impl R1CS<CircuitFieldElement> {
         (columns_a, columns_b, columns_c)
     }
 }
+
+
 
 // #[derive(Debug)]
 // pub struct UninitializedR1CS<F> {

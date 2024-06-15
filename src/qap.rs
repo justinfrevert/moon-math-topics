@@ -57,15 +57,15 @@ pub struct InterpolatedPolynomials {
 
 // Definition for quadratic arithmetic program
 #[derive(Debug)]
-pub struct QAP {
-    pub target_polynomial: Polynomial<CircuitFieldElement>,
-    pub a: Vec<Polynomial<CircuitFieldElement>>,
-    pub b: Vec<Polynomial<CircuitFieldElement>>,
-    pub c: Vec<Polynomial<CircuitFieldElement>>,
+pub struct QAP<E> {
+    pub target_polynomial: Polynomial<E>,
+    pub a: Vec<Polynomial<E>>,
+    pub b: Vec<Polynomial<E>>,
+    pub c: Vec<Polynomial<E>>,
 }
 
 // impl<F: Add + Mul + Clone + Debug + Display + FieldElementZero + Into<CircuitFieldElement>> QAP {
-impl QAP {
+impl QAP<CircuitFieldElement> {
     pub fn new(r1cs: R1CS<CircuitFieldElement>, field: CircuitField) -> Result<Self, QAPError> {
         // TODO: remove unwrap
         // if field.0 < r1cs.a.len().try_into().unwrap() {

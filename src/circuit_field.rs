@@ -1,3 +1,4 @@
+use blstrs::Scalar;
 #[cfg(feature = "proving")]
 use rand::Rng;
 use std::cmp::Ordering;
@@ -5,6 +6,7 @@ use std::fmt::Display;
 use std::hash::Hash;
 use std::ops::{AddAssign, Sub, SubAssign};
 use std::ops::{Add, Mul, Neg};
+use group::ff::Field as FieldT;
 
 use crypto_bigint::{AddMod, ConstZero, Constants, Integer, MulMod, NegMod, NonZero, Random, SubMod, Zero, U512};
 
@@ -100,6 +102,22 @@ impl FieldElementZero for u32 {
 impl FieldElementOne for u32 {
     fn one(&self) -> Self {
         1_u32
+    }
+}
+
+impl FieldElementOne for Scalar {
+    fn one(&self) -> Self {
+        Scalar::ONE
+    }
+}
+
+impl FieldElementZero for Scalar {
+    fn is_zero(&self) -> bool {
+        *self == Scalar::ZERO
+    }
+
+    fn zero(&self) -> Self {
+        Scalar::ZERO
     }
 }
 

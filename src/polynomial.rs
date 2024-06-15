@@ -1,12 +1,76 @@
+use blstrs::{pairing, G1Projective, G2Affine, G2Projective, Scalar};
 use crypto_bigint::{ConstZero, U512};
+use group::prime::PrimeCurveAffine;
 
 use crate::circuit_field::{CircuitField, CircuitFieldElement, FieldElementOne, FieldElementZero};
 use std::cmp::max;
 use std::fmt::Display;
 use std::ops::{Add, Div, Mul, Neg, Sub};
+use group::{ff::Field, Group};
+use group::Curve;
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Polynomial<F>(pub Vec<F>);
 
+// New implementation using blstrs library
+impl Polynomial<Scalar> {
+    pub fn evaluate(&self, tau: Scalar) -> Scalar {
+        let mut result = Scalar::ZERO;
+        let mut tau_power = Scalar::ONE;
+        for coeff in self.0.iter() {
+            result += coeff * tau_power;
+            tau_power *= tau;
+        }
+        result
+    }
+
+ 
+
+    pub fn evaluate_commitment(&self, tau: G1Projective) -> G1Projective {
+
+        fn calcit(base: G1Projective, pow: usize) -> G1Projective {
+            let mut result = base;
+            for i in 0..pow {
+                result *= Scalar::from(pow as u64);
+            }
+            result
+        }
+
+        // self.0
+        // .iter()
+        // .map(|(coef)| (tau * *coef))
+        // .sum::<G1Projective>()
+        // .into()
+        let mut anses = G1Projective::identity();
+
+        for (rev_idx, coef) in self.0.iter().enumerate().rev() {
+
+            println!("iter: {:?}", rev_idx);
+    
+            if rev_idx > 0 {
+                // println!("Three");
+                // let x = G1Projective::generator() * Scalar::from(tau.pow(rev_idx as u32));
+
+                let x = calcit(tau, rev_idx);
+                // let x = rev_idx * Scalar::from(tau * rev_idx);
+                // let x = tau * Scalar::from(rev_idx as u64);
+
+                // assert_eq!(x, x3);
+                // assert_eq!(*coef, Scalar::from(1));
+    
+                // first_answer = x * coef;
+                // assert_eq!(first_answer, x3 * Scalar::from(1));
+                anses += x * coef;
+            } else if rev_idx == 0 {
+                anses += G1Projective::generator() * coef;
+            }
+        }
+        anses
+    }
+
+}
+
+// Old, manual implementation for circuit fields
 impl Polynomial<CircuitFieldElement> {
     pub fn evaluate(&self, point: CircuitFieldElement) -> CircuitFieldElement {
         let mut total = self.0[0].zero();
@@ -113,6 +177,33 @@ impl<
             }
         }
         Polynomial::new(prod)
+    }
+}
+
+impl Mul<Scalar> for Polynomial<Scalar> {
+    type Output = Polynomial<Scalar>;
+
+    fn mul(self, rhs: Scalar) -> Polynomial<Scalar> {
+        let new_coefficients: Vec<Scalar> = self.0.into_iter().map(|coeff| coeff * rhs).collect();
+        Polynomial::new(new_coefficients)
+    }
+}
+
+impl Mul<Scalar> for &Polynomial<Scalar> {
+    type Output = Polynomial<Scalar>;
+
+    fn mul(self, rhs: Scalar) -> Polynomial<Scalar> {
+        let new_coefficients: Vec<Scalar> = self.0.iter().map(|&coeff| coeff * rhs).collect();
+        Polynomial::new(new_coefficients)
+    }
+}
+
+impl Mul<Polynomial<Scalar>> for Scalar {
+    type Output = Polynomial<Scalar>;
+
+    fn mul(self, rhs: Polynomial<Scalar>) -> Polynomial<Scalar> {
+        let new_coefficients: Vec<Scalar> = rhs.0.into_iter().map(|coeff| self * coeff).collect();
+        Polynomial::new(new_coefficients)
     }
 }
 
@@ -316,6 +407,230 @@ fn lagrange_inerpolation_2() {
     assert_eq!(poly, expected);
     assert_eq!(poly2, expected2);
     assert_eq!(poly3, expected3);
+}
+
+#[test]
+fn evaluation_group_elements() {
+    let poly = Polynomial::new(vec![Scalar::from(2), Scalar::from(4), Scalar::from(3)]);
+    let expected = Scalar::from(134_u64);
+
+    let point = Scalar::from(6_u64);
+    assert_eq!(poly.evaluate(point), expected);
+
+    let point_commitment = G1Projective::generator() * point;
+    let expected_commitment = G1Projective::generator() * expected;
+
+    // let a = G1Projective::generator() * Scalar::from(5);
+    // let b = G2Projective::generator() * Scalar::from(6);
+    // let c = G2Projective::generator() * Scalar::from(5 * 6);
+
+    // let pairing_a = pairing(&a.into(), &b.into());
+    // let pairing_b = pairing(&G1Affine::generator(), &c.into());
+
+    // assert!(pairing_a == pairing_b);
+
+    let pairing_a = pairing(&expected_commitment.to_affine(), &G2Affine::generator());
+    
+    let result = poly.evaluate_commitment(point_commitment);
+
+    let pairing_b = pairing(&result.to_affine(), &G2Affine::generator());
+
+    assert_eq!(pairing_a, pairing_b);
+
+    // assert_eq!(poly.evaluate_commitment(point_commitment), expected_commitment);
+}
+
+#[test]
+fn evaluation_group_elements2() {
+    let poly = Polynomial::new(vec![Scalar::from(2), Scalar::from(4), Scalar::from(3)]);
+    let expected = Scalar::from(134_u64);
+
+    let point = Scalar::from(6_u64);
+    assert_eq!(poly.evaluate(point), expected);
+
+    let point_commitment = G1Projective::generator() * point;
+    let expected_commitment = G1Projective::generator() * expected;
+
+    assert_eq!(poly.evaluate_commitment(point_commitment), expected_commitment);
+}
+
+#[test]
+fn eval_g_3() {
+    env_logger::init();
+    // 39 == x^3 -4x^2 +3x -1
+    let evaluate_at = 5_u64;
+    let evaluate_at_commitment = G1Projective::generator() * Scalar::from(5_u64);
+
+    let x3 = G1Projective::generator() * Scalar::from(evaluate_at.pow(3));
+    let x2 = G1Projective::generator() * Scalar::from(evaluate_at.pow(2));
+    let x = G1Projective::generator() * Scalar::from(evaluate_at);
+
+    // assert_eq!(x, x + (Scalar::from(2) * ));
+
+    // let poly = Polynomial::new(vec![
+    //     Scalar::from(1),
+    //     -Scalar::from(4),
+    //     Scalar::from(3),
+    //     -Scalar::from(1)
+    // ]);
+
+    let poly = Polynomial::new(vec![
+        -Scalar::from(1),
+        Scalar::from(3),
+        -Scalar::from(4),
+        Scalar::from(1)
+    ]);
+
+    let lhs = G1Projective::generator() * Scalar::from(39);
+
+    let rhs = x3 * Scalar::from(1)
+        + x2 * -Scalar::from(4)
+        + x * Scalar::from(3)
+        + G1Projective::generator() * -Scalar::from(1);
+
+    // let rhs = x3 * Scalar::from(1)
+    //     + x2 * -Scalar::from(4)
+    //     + x * Scalar::from(3)
+    //     + G1Projective::generator() * -Scalar::from(1);
+
+    let mut computed_rhs = G1Projective::identity();
+
+    let mut first_answer = G1Projective::identity();
+    let mut second_answer = G1Projective::identity();
+    let mut third_answer = G1Projective::identity();
+    let mut fourth_answer = G1Projective::identity();
+
+    let mut anses = G1Projective::identity();
+
+    for (rev_idx, coef) in poly.0.iter().enumerate().rev() {
+
+        println!("iter: {:?}", rev_idx);
+
+        if rev_idx == 3 {
+            println!("Three");
+            let x = G1Projective::generator() * Scalar::from(evaluate_at.pow(rev_idx as u32));
+            assert_eq!(x, x3);
+            
+            // let x_com = {
+            //     let tt = G1Projective::generator() * evaluate_at;
+            // };
+
+            assert_eq!(*coef, Scalar::from(1));
+
+            first_answer = x * coef;
+            assert_eq!(first_answer, x3 * Scalar::from(1));
+        } else if rev_idx == 2 {
+            println!("Two");
+
+            let x = G1Projective::generator() * Scalar::from(evaluate_at.pow(rev_idx as u32));
+            assert_eq!(x, x2);
+            assert_eq!(*coef, -Scalar::from(4));
+
+            second_answer = x * coef;
+            assert_eq!(second_answer, x2 * -Scalar::from(4));
+
+            assert_eq!(
+                x2 * -Scalar::from(4),
+                second_answer
+                );
+        } else if rev_idx == 1 {
+            println!("One");
+            let x_local = G1Projective::generator() * Scalar::from(evaluate_at.pow(rev_idx as u32));
+            assert_eq!(x, x_local);
+            assert_eq!(*coef, Scalar::from(3));
+
+            third_answer = x_local * coef;
+            assert_eq!(third_answer, x * Scalar::from(3));
+
+            assert_eq!(
+                x * Scalar::from(3),
+                third_answer
+            );
+        } else if rev_idx == 0 {
+            println!("Zero");
+            // let x_local = G1Projective::generator() * Scalar::from(evaluate_at.pow(rev_idx as u32));
+            // let x_local = G1Projective::generator() * Scalar::from(evaluate_at); 
+            // assert_eq!(x, x_local);
+            assert_eq!(*coef, -Scalar::from(1));
+
+            fourth_answer = G1Projective::generator() * coef;
+        }
+
+        if rev_idx > 0 {
+            // println!("Three");
+            let x = G1Projective::generator() * Scalar::from(evaluate_at.pow(rev_idx as u32));
+
+
+            // assert_eq!(x, x3);
+            // assert_eq!(*coef, Scalar::from(1));
+
+            // first_answer = x * coef;
+            // assert_eq!(first_answer, x3 * Scalar::from(1));
+            anses += x * coef;
+        } else if rev_idx == 0 {
+            anses += G1Projective::generator() * coef;
+        }
+
+
+        assert_eq!(
+            x3 * Scalar::from(1),
+            first_answer
+        );
+    }
+
+    assert_eq!(
+        x3 * Scalar::from(1)
+        + x2 * -Scalar::from(4)
+        + x * Scalar::from(3)
+        + G1Projective::generator() * -Scalar::from(1),
+        first_answer + second_answer + third_answer + fourth_answer
+    );
+
+    assert_eq!(
+        x3 * Scalar::from(1)
+        + x2 * -Scalar::from(4)
+        + x * Scalar::from(3)
+        + G1Projective::generator() * -Scalar::from(1),
+        anses
+    );
+
+    assert_eq!(
+        first_answer + second_answer + third_answer + fourth_answer,
+        anses
+    );
+
+
+        // let rhs = x3 * Scalar::from(1)
+        // + x2 * -Scalar::from(4)
+        // + x * Scalar::from(3)
+        // + G1Projective::generator() * -Scalar::from(1);
+
+    // log::info!("rev idx: {:?}... coeff{:?}", rev_idx, coef);
+
+    // let x = if rev_idx != 0 {
+    //     G1Projective::generator() * Scalar::from(evaluate_at.pow(rev_idx as u32))
+    // } else {
+    //     G1Projective::generator() * Scalar::from(evaluate_at)
+    // };
+
+    // let x = G1Projective::generator() * Scalar::from(evaluate_at.pow(rev_idx as u32));
+    // computed_rhs = x * coef
+
+    // computed_rhs = if rev_idx != 0 {
+    //     G1Projective::generator() * Scalar::from(evaluate_at.pow(rev_idx as u32))
+    // } else {
+    //     x * coef
+    // }
+
+    assert_eq!(poly.evaluate(Scalar::from(5)), Scalar::from(39));
+
+    assert_eq!(lhs, rhs);
+
+    // assert_eq!(computed_rhs, rhs);
+
+
+    assert_eq!(evaluate_at_commitment, poly.evaluate_commitment(evaluate_at_commitment))
+
 }
 
 // #[test]
