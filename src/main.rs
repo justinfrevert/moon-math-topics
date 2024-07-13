@@ -5,30 +5,35 @@ pub mod qap;
 pub mod r1cs;
 mod groth16;
 
+use blstrs::Scalar;
+use circuit_field::FieldElementZero;
 use crypto_bigint::U512;
 use groth16::Groth16;
+use group::ff::{Field, PrimeField};
 
 use crate::{circuit::Node, circuit_field::{CircuitField, CircuitFieldElement}};
-use circuit::{Circuit, Operation::*};
+use circuit::{Circuit, CircuitNoFieldInfo, Operation::*};
 use qap::QAP;
 
 fn main() {
     // let field = CircuitField(U512::from_u32(13));
-    // let w_0 = field.element(U512::from_u32(3));
-    // let w_1 = field.element(U512::from_u32(4));
-    // let w_2 = field.element(U512::from_u32(2));
+    // let field_mod = U512::from_le_hex(Scalar::MODULUS);
+    // let field = CircuitField(field_mod);
 
-    // let instructions = vec![
-    //     Node::constant(w_0.clone()),
-    //     Node::constant(w_1.clone()),
-    //     Node::constant(w_2.clone()),
-    //     // w_0 * w_1
-    //     Node::operation(Multiply, 0, 1), // v1 // idx 4
-    //     // v_1 * w_2
-    //     Node::operation(Multiply, 2, 3), // v2 // idx 5
-    // ];
+    let w_0 = Scalar::from(1);
+    let w_1 = Scalar::from(2);
 
-    // let circuit = Circuit::new(instructions, field.clone());
+    let instructions = vec![
+        Node::constant(w_0.clone()),
+        Node::constant(w_1.clone()),
+        Node::operation(Multiply, 0, 1), 
+        Node::operation(Multiply, 2, 2),
+    ];
+
+    // let circuit: Circuit<Scalar, Scalar> = Circuit::new(instructions, None);
+    // let circuit: Circuit<Scalar> = Circuit::new(instructions);
+    let circuit: CircuitNoFieldInfo<Scalar> = CircuitNoFieldInfo::new(instructions);
+
     // let (_, r1cs) = circuit.calculate_with_trace();
 
     // let qap = QAP::new(r1cs, field.clone()).unwrap();
@@ -43,6 +48,7 @@ fn main() {
 }
 
 #[test]
+// Testing basic circuit which was written for learning only
 fn three_factors_example_works() {
     let field = CircuitField(U512::from_u32(29));
     let number = field.element(U512::from_u32(2));
@@ -77,6 +83,22 @@ fn addition() {
 }
 
 #[test]
+// Testing circuit implementation written to support realistic types - Scalars of the field related to the elliptic curve
+fn addition_field_scalar() {
+    let number = Scalar::from(9);
+
+    let instructions = vec![
+        Node::constant(Scalar::from(4)),
+        Node::constant(Scalar::from(5)),
+        Node::operation(Add, 0, 1),
+    ];
+
+    let mut c = CircuitNoFieldInfo::new(instructions);
+    let (result, _) = c.calculate_with_trace();
+    assert_eq!(result, Some(number));
+}
+
+#[test]
 fn multiplication() {
     let field = CircuitField(U512::from_u32(5));
     let answer = field.element(U512::from_u32(0));
@@ -89,6 +111,21 @@ fn multiplication() {
 
     let mut c = Circuit::new(instructions, field);
     assert_eq!(c.calculate(), Some(answer));
+}
+
+#[test]
+fn multiplication_field_scalar() {
+    let answer = Scalar::from(20);
+
+    let instructions = vec![
+        Node::constant(Scalar::from(4)),
+        Node::constant(Scalar::from(5)),
+        Node::operation(Multiply, 0, 1),
+    ];
+
+    let c = CircuitNoFieldInfo::new(instructions);
+    let (result, _) = c.calculate_with_trace();
+    assert_eq!(result, Some(answer));
 }
 
 #[test]
@@ -122,6 +159,23 @@ fn addition_and_multiplication() {
 
     let mut c = Circuit::new(instructions, field);
     assert_eq!(c.calculate(), Some(number));
+}
+
+#[test]
+fn addition_and_multiplication_field_scalar() {
+    let number = Scalar::from(3123);
+
+    let instructions = vec![
+        Node::constant(Scalar::from(42)),
+        Node::constant(Scalar::from(999)),
+        Node::operation(Add, 0, 1),
+        Node::constant(Scalar::from(3)),
+        Node::operation(Multiply, 2, 3),
+    ];
+
+    let mut c = CircuitNoFieldInfo::new(instructions);
+    let (result, _) = c.calculate_with_trace();
+    assert_eq!(result, Some(number));
 }
 
 #[test]

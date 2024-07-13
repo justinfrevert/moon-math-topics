@@ -189,19 +189,25 @@ impl Groth16 {
             g_1_w += crs.g_1_rows_values[idx] * w;
         }
 
-        // let mut g_1_a = G1Projective::identity();
 
         for (idx, row) in crs.g_1_rows_values.iter().enumerate() {
 
-            let tau_at_idx = crs.g_1_trapdoor_values.taus[idx];
+            // let tau_at_idx = crs.g_1_trapdoor_values.taus[idx];
             // qap_instance.a[idx].evaluate(tau_at_idx);
-            qap_instance.a[idx].evaluate_commitment(tau_at_idx);
+            // qap_instance.a[idx].evaluate_polynomial_commitment(tau_at_idx);
+            let thing = qap_instance.a[idx].evaluate_polynomial_commitment(&crs.g_1_trapdoor_values.taus);
+
+            println!("THing {:?}", thing);
+        //    let thing = qap_instance.a[idx];
 
         }
 
+        // let maybe_thing_a = G1Projective::multi_exp(qap_instance.a, scalars);
 
-    //     let g_w = ()
+        // let mut all_a = vec![];
+
     }
+
     fn verify() -> bool {
         false
     }

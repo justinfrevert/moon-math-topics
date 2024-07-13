@@ -2,7 +2,7 @@
 // Implement boolean, or equality check constraint
 use core::fmt::Debug;
 
-use crate::circuit_field::CircuitFieldElement;
+// use crate::circuit_field::CircuitFieldElement;
 
 const CONSTANTS_INDEX: usize = 0;
 const OUT_INDEX: usize = 1;
@@ -107,21 +107,29 @@ impl<E: Clone> R1CS<E> {
 // }
 
 #[derive(Debug)]
-pub struct UninitializedR1CS<CircuitFieldElement> {
-    pub a: Vec<Vec<CircuitFieldElement>>,
-    pub b: Vec<Vec<CircuitFieldElement>>,
-    pub c: Vec<Vec<CircuitFieldElement>>,
-    pub witness: Vec<CircuitFieldElement>,
+// pub struct UninitializedR1CS<CircuitFieldElement> {
+//     pub a: Vec<Vec<CircuitFieldElement>>,
+//     pub b: Vec<Vec<CircuitFieldElement>>,
+//     pub c: Vec<Vec<CircuitFieldElement>>,
+//     pub witness: Vec<CircuitFieldElement>,
+//     pub r1cs_length: usize,
+//     pub total_gates: usize,
+// }
+pub struct UninitializedR1CS<F> {
+    pub a: Vec<Vec<F>>,
+    pub b: Vec<Vec<F>>,
+    pub c: Vec<Vec<F>>,
+    pub witness: Vec<F>,
     pub r1cs_length: usize,
     pub total_gates: usize,
 }
 
-impl UninitializedR1CS<CircuitFieldElement> {
-    pub fn new(one: CircuitFieldElement, zero: CircuitFieldElement, r1cs_length: usize, total_gates: usize) -> Self {
-        let a: Vec<Vec<CircuitFieldElement>> = vec![];
-        let b: Vec<Vec<CircuitFieldElement>> = vec![];
-        let c: Vec<Vec<CircuitFieldElement>> = vec![];
-        let mut witness: Vec<CircuitFieldElement> = vec![];
+impl<F: Clone> UninitializedR1CS<F> {
+    pub fn new(one: F, zero: F, r1cs_length: usize, total_gates: usize) -> Self {
+        let a: Vec<Vec<F>> = vec![];
+        let b: Vec<Vec<F>> = vec![];
+        let c: Vec<Vec<F>> = vec![];
+        let mut witness: Vec<F> = vec![];
 
         for _ in 0..r1cs_length {
             witness.push(zero.clone());
@@ -139,7 +147,7 @@ impl UninitializedR1CS<CircuitFieldElement> {
     }
 
     // Adds a new row to the current R1CS, which represents an area to store constraints
-    pub fn add_constraint(&mut self, zero: CircuitFieldElement) {
+    pub fn add_constraint(&mut self, zero: F) {
         let mut gate = vec![];
         for _ in 0..self.r1cs_length {
             gate.push(zero.clone());
@@ -152,9 +160,9 @@ impl UninitializedR1CS<CircuitFieldElement> {
     pub fn add_to_constraint_a(
         &mut self,
         lhs_index: usize,
-        lhs: CircuitFieldElement,
+        lhs: F,
         current_constraint: usize,
-        one_value: CircuitFieldElement,
+        one_value: F,
     ) {
         // Original index, but bumped right past the const value, as well as the out value(2 places)
         let lhs_r1cs_bumped = lhs_index + R1CS_OFFSET;
@@ -166,9 +174,9 @@ impl UninitializedR1CS<CircuitFieldElement> {
     pub fn add_to_constraint_b(
         &mut self,
         rhs_index: usize,
-        rhs: CircuitFieldElement, 
+        rhs: F, 
         current_constraint: usize,
-        one_value: CircuitFieldElement
+        one_value: F
     ) {
         // Original index, but bumped right past the const value, as well as the out value(2 places)
         let rhs_r1cs_bumped = rhs_index + R1CS_OFFSET;
@@ -180,8 +188,8 @@ impl UninitializedR1CS<CircuitFieldElement> {
         &mut self,
         node_idx: usize,
         current_constraint: usize,
-        calculation:CircuitFieldElement, 
-        one: CircuitFieldElement
+        calculation:F, 
+        one: F
     ) {
         // Original index, but bumped right past the const value, as well as the out value(2 places)
         // We use the node index because that represents the current node(that's what the output of the gate is...)
@@ -197,7 +205,7 @@ impl UninitializedR1CS<CircuitFieldElement> {
         }
     }
 
-    pub fn into_r1cs(&self) -> R1CS<CircuitFieldElement> {
+    pub fn into_r1cs(&self) -> R1CS<F> {
         R1CS::new(
             self.a.clone(),
             self.b.clone(),
