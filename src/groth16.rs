@@ -1,19 +1,9 @@
-use crate::{QAP, r1cs::R1CS, circuit_field::CircuitFieldElement};
-use blstrs::{G1Projective, G2Projective, Scalar };
-use group::{self, Group};
-use rand::rngs::OsRng;
+use crate::QAP;
+use blstrs::{pairing, G1Projective, G2Projective, Scalar };
+use group::{self, Curve, Group};
+use itertools::izip;
 
-pub struct SimulationTrapdoor<FE>(FE, FE, FE, FE, FE);
-
-// pub struct CRS(
-//     ((G1Projective, G1Projective, G1Projective, Vec<G1Projective>), G1Projective, G1Projective, G1Projective),
-//     (G2Projective, G2Projective, G2Projective, Vec<G2Projective>)
-// );
-
-// pub struct CRS_G1 {
-//     trapdoor_values: G1Projective
-// }
-
+#[derive(Clone)]
 pub struct TrapDoorValues {
     alpha: G1Projective,
     beta: G1Projective, 
@@ -37,6 +27,7 @@ impl TrapDoorValues {
     }
 }
 
+#[derive(Clone)]
 pub struct CRS {
     g_1_trapdoor_values: TrapDoorValues,
     /// Accumulated calculations over each column(the upper right side of the definition)
@@ -62,35 +53,20 @@ impl CRS {
     }
 }
 
-// pub struct Groth16<G>(PhantomData<G>);
 pub struct Groth16();
 
-// impl<FE, F: Field<FE>> Groth16<FE, F> {
-// impl<G: Group + std::ops::Mul<Scalar, Output = G>> Groth16<G> {
 impl Groth16 {
     #[cfg(feature = "proving")]
-    // note: n = num rows, m = num columns
     pub fn setup(qap: QAP<Scalar>, n: usize, m: usize) -> CRS {
-        use blstrs::G2Projective;
         use group::ff::Field;
-        use rand::RngCore;
 
-        let rng = OsRng;
-
-        // let alpha = Scalar::from(rng.next_u64());
-        // let beta = Scalar::from(rng.next_u64());
-        // let gamma = Scalar::from(rng.next_u64());
-        // let delta = Scalar::from(rng.next_u64());
-        // let tau = Scalar::from(rng.next_u64());
-        // Chosen values for comparison with text
+        // Chosen values for comparison with text. This is obviously a temporary measure 
         let alpha = Scalar::from(6);
         let beta = Scalar::from(5);
         let gamma = Scalar::from(4);
         let delta = Scalar::from(3);
         let tau_plain = 2;
         let tau = Scalar::from(tau_plain);
-
-        let simulation_trapdoor = SimulationTrapdoor(alpha, beta, gamma, delta, tau);
 
         // Upper left side
         let g_alpha = G1Projective::generator() * alpha;
@@ -106,11 +82,9 @@ impl Groth16 {
             powers_of_tau.push(val);
         }
 
-        // let upper_left_side = (g_alpha, g_beta, g_delta, powers_of_tau);
         let upper_left_side = TrapDoorValues::new(g_alpha, g_beta, g_delta, powers_of_tau);
 
         // upper right side
-        // let mut upper_right_side = Scalar::ZERO;
         let mut upper_right_side = vec![];
         for j in 0..n {
             let a_tau = qap.a[j].evaluate(tau);
@@ -120,27 +94,27 @@ impl Groth16 {
             let numerator = (beta * a_tau) + (alpha * b_tau) + c_tau;
 
             let result = numerator * gamma.invert().unwrap();
-            let result = G1Projective::generator() * result;
-            // upper_right_side = upper_right_side + ans;
-            upper_right_side.push(result)
+            upper_right_side.push(G1Projective::generator() * result)
         }
-        // let upper_right_side = G1Projective::generator() * upper_right_side;
 
         // lower left side
         // let mut lower_left_side = Scalar::ZERO;
         let mut lower_left_side = vec![];
         for j in 1..m {
-            let a_tau = qap.a[j + n].evaluate(tau);
-            let b_tau = qap.b[j + n].evaluate(tau);
-            let c_tau = qap.b[j + n].evaluate(tau);
+            // Text says j + n... is that right? 
+            // let a_tau = qap.a[j + n].evaluate(tau);
+            // let b_tau = qap.b[j + n].evaluate(tau);
+            // let c_tau = qap.c[j + n].evaluate(tau);
+            // Instead, we will just do j for now? 
+            let a_tau = qap.a[j].evaluate(tau);
+            let b_tau = qap.b[j].evaluate(tau);
+            let c_tau = qap.c[j].evaluate(tau);
 
             let numerator = (beta * a_tau) + (alpha * b_tau) + c_tau;
 
             let result = numerator * delta.invert().unwrap();
             lower_left_side.push(G1Projective::generator() * result);
-            // let lower_left_side = G1Projective::generator() * lower_left_side;
         }
-        // let lower_left_side = G1Projective::generator() * lower_left_side;
 
         // lower right side
         let mut lower_right_side = vec![];
@@ -149,10 +123,6 @@ impl Groth16 {
             let result  = numerator * delta.invert().unwrap();
             lower_right_side.push(G1Projective::generator() * result);
         }
-
-        // let lower_right_side = G1Projective::generator() * lower_right_side;
-
-        // let crs_g1 = (upper_left_side, upper_right_side, lower_left_side, lower_right_side);
 
         // G_2
         let g_2_beta = G2Projective::generator() * beta;
@@ -167,8 +137,6 @@ impl Groth16 {
         }
 
         let crs_g2 = (g_2_beta, g_2_gamma, g_2_delta, g_2_powers_of_tau);
-
-        // CRS::new(crs_g1, crs_g2)
         CRS::new(
             upper_left_side, 
             upper_right_side, 
@@ -176,39 +144,25 @@ impl Groth16 {
             lower_right_side, 
             crs_g2
         )
-        // (crs_g1, crs_g2)
     }
 
     #[cfg(feature = "proving")]
-    fn prove(r1cs_instance: R1CS<Scalar>, qap_instance: QAP<Scalar>, crs: CRS) {
-        // use crate::r1cs::R1CS;
-
+    pub fn prove(qap_instance: QAP<Scalar>, crs: CRS) -> (G1Projective, G2Projective, G1Projective) {
+        let mut g_1_a = G1Projective::identity();
+        let mut g_2_b = G2Projective::identity();
         let mut g_1_w = G1Projective::identity();
-        for (idx, w) in r1cs_instance.witness.into_iter().enumerate() {
-            // TODO: check if its the correct idx according to the spec
-            g_1_w += crs.g_1_rows_values[idx] * w;
+
+        for (a_poly, b_poly, c_poly) in izip!(qap_instance.a, qap_instance.b, qap_instance.c) {
+            g_1_a += a_poly.evaluate_polynomial_commitment(&crs.g_1_trapdoor_values.taus);
+            g_2_b += b_poly.evaluate_polynomial_commitment_g2(&crs.g_2_values.3);
+            g_1_w += c_poly.evaluate_polynomial_commitment(&crs.g_1_trapdoor_values.taus);
         }
 
-
-        for (idx, row) in crs.g_1_rows_values.iter().enumerate() {
-
-            // let tau_at_idx = crs.g_1_trapdoor_values.taus[idx];
-            // qap_instance.a[idx].evaluate(tau_at_idx);
-            // qap_instance.a[idx].evaluate_polynomial_commitment(tau_at_idx);
-            let thing = qap_instance.a[idx].evaluate_polynomial_commitment(&crs.g_1_trapdoor_values.taus);
-
-            println!("THing {:?}", thing);
-        //    let thing = qap_instance.a[idx];
-
-        }
-
-        // let maybe_thing_a = G1Projective::multi_exp(qap_instance.a, scalars);
-
-        // let mut all_a = vec![];
-
+        g_1_w += qap_instance.target_polynomial.evaluate_polynomial_commitment(&crs.g_1_trapdoor_values.taus);
+        (g_1_a, g_2_b, g_1_w)
     }
 
-    fn verify() -> bool {
+    pub fn verify(public_input: Vec<Scalar>, proof: (G1Projective, G2Projective, G1Projective), crs: CRS) -> bool {
         false
     }
 }

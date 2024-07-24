@@ -1,6 +1,5 @@
 use blstrs::Scalar;
 #[cfg(feature = "proving")]
-use rand::Rng;
 use std::cmp::Ordering;
 use std::fmt::Display;
 use std::hash::Hash;
@@ -8,7 +7,7 @@ use std::ops::{AddAssign, Sub, SubAssign};
 use std::ops::{Add, Mul, Neg};
 use group::ff::Field as FieldT;
 
-use crypto_bigint::{AddMod, ConstZero, Constants, Integer, MulMod, NegMod, NonZero, Random, SubMod, Zero, U512};
+use crypto_bigint::{NonZero, U512};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 // Field with sole value of modulus
@@ -46,7 +45,6 @@ impl Hash for CircuitField {
         self.0.hash(state);
     }
 }
-
 
 pub trait CicuitFieldInfo {
     fn modulus(&self) -> U512;
@@ -160,9 +158,6 @@ impl CircuitFieldElement {
     }
 
     pub fn invert(&self) -> Self {
-        // TODO: Replace field modulus type with something which would allow larger exponentiations
-        // let small_modulus = self.field.0;
-
         let subtrahend = U512::from_u32(2);
         let exponent: CircuitFieldElement = CircuitFieldElement::new(self.field.0 - subtrahend, self.clone().field);
 
@@ -177,53 +172,8 @@ impl CircuitFieldElement {
         }
     }
 
-    // pub fn pow(&self, rhs: Self) -> Self {
-    //     // self.value.mul_mod(&rhs.value, &self.field.0);
-
-
-    // }
-
-    // pub fn pow(&self, n: Self) -> Self {
-
-    //     // CircuitFieldElement::one(&self)
-
-    //     let two = NonZero::new(U512::from_u32(2)).unwrap();
-    //     match n.value {
-    //         U512::ZERO => CircuitFieldElement::one(&self),
-    //         U512::ONE => *self,
-
-
-    //         // i if i % two == 0 => exp(x * x, n / 2),
-    //         i if i.div_rem(&two).1 == U512::ZERO => {
-    //             let divided = CircuitFieldElement::new(i / two, self.field);
-    //             (self *  self).pow(divided)
-    //             // pow(x * x, n / 2)
-    //         },
-
-    //         // _ => self * (self * self).pow(n - 1) / 2,
-    //         _ => {
-    //             let initial_pow = self * self;
-    //             self * initial_pow.pow(n - 1) / 2
-    //         },
-    //     }     
-    // }
 
     pub fn pow(&self, rhs: Self) -> U512 {
-        // // self.value.as_
-        // let x = self.value;
-        // let n = rhs.value;
-
-        // let p = U512::from_u32(3);
-        // let two = NonZero::new(U512::from_u16(2)).unwrap();
-        // if n == U512::ZERO {
-        //     U512::ONE
-        // } else if n == U512::ONE {
-        //     x
-        // } else if n % two == U512::ZERO {
-        //     pow(x.mul_mod(&x, &p), n / two)
-        // } else {
-        //     x.mul_mod(&pow(x.mul_mod(&x, &p), (n - U512::ONE) / two), &p) 
-        // } 
         pow(self.value, rhs.value, self.field.0)
     }
 
@@ -259,13 +209,6 @@ impl Add for CircuitFieldElement {
     }
 }
 
-// impl AddAssign for CircuitFieldElement {
-//     fn add_assign(&mut self, rhs: Self) {
-//         let ans = (self.value + rhs.value) % self.field.clone().0;
-//         self = ans;
-//     }
-// }
-
 impl Sub for CircuitFieldElement {
     type Output = CircuitFieldElement;
     fn sub(self, rhs: Self) -> Self::Output {
@@ -275,26 +218,9 @@ impl Sub for CircuitFieldElement {
 
 impl SubAssign<&CircuitFieldElement> for CircuitFieldElement {
     fn sub_assign(&mut self, rhs: &CircuitFieldElement) {
-        // self = self + -rhs
-
-        // if self.value < rhs.value {
-        //     self.value = (self.field.0 - (rhs.value - self.value)) % self.field.0;
-        // } else {
-        //     self.value = (self.value - rhs.value) % self.field.0;
-        // }
-
         self.value = self.value.sub_mod(&rhs.value, &self.field.0)
     }
 }
-
-// impl SubAssign for CircuitFieldElement {
-//     fn sub_assign(&mut self, rhs: Self) {
-//         // self = self + -rhs;
-
-//         let mut subtraction = self.clone() + -rhs;
-//         self = &subtraction;
-//     }
-// }
 
 impl<'a, 'b> Add<&'b CircuitFieldElement> for &'a CircuitFieldElement {
     type Output = CircuitFieldElement;

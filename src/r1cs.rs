@@ -8,7 +8,7 @@ const CONSTANTS_INDEX: usize = 0;
 const OUT_INDEX: usize = 1;
 const R1CS_OFFSET: usize = 2;
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct R1CS<F> {
     pub a: Vec<Vec<F>>,
     pub b: Vec<Vec<F>>,

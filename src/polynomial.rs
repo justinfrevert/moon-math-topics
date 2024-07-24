@@ -1,13 +1,11 @@
-use blstrs::{pairing, G1Projective, G2Affine, G2Projective, Scalar};
-use crypto_bigint::{ConstZero, U512};
-use group::prime::PrimeCurveAffine;
+use blstrs::{G1Projective, G2Projective, Scalar};
+use crypto_bigint::U512;
 
 use crate::circuit_field::{CircuitField, CircuitFieldElement, FieldElementOne, FieldElementZero};
 use std::cmp::max;
 use std::fmt::Display;
 use std::ops::{Add, Div, Mul, Neg, Sub};
 use group::{ff::Field, Group};
-use group::Curve;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Polynomial<F>(pub Vec<F>);
@@ -24,28 +22,41 @@ impl Polynomial<Scalar> {
         result
     }
 
-    // pub fn evaluate_commitment(&self, tau: G1Projective) -> G1Projective {
-    //     let mut result = G1Projective::identity();
-    //     for (rev_idx, coef) in self.0.iter().enumerate().rev() {
-    //         if rev_idx > 0 {
-    //             result = tau * Scalar::from(rev_idx as u64) + result;
-    //         }
-    //         result += G1Projective::generator() * coef;
-    //     }
-    //     result
-    // }
+    fn trim(&self) -> Self {
+        let mut new_coeffs = self.0.clone();
+        while let Some(true) = new_coeffs.last().map(|c| Field::is_zero(c).into()) {
+            new_coeffs.pop();
+        }
+        Polynomial::new(new_coeffs)
+    }
 
-    // pub fn evaluate_commitment(&self, tau_values: &[G1Projective]) -> G1Projective {
-    //     let mut result = G1Projective::identity();
-    //     for (rev_idx, coef) in self.0.iter().enumerate().rev() {
-    //         if rev_idx > 0 {
-    //             result = tau * Scalar::from(rev_idx as u64) + result;
-    //         }
-    //         result += G1Projective::generator() * coef;
-    //     }
-    //     result
-    // }
+    pub fn div_rem(self, divisor: Self) -> (Self, Self) {
+        let zero = Scalar::ZERO;
 
+        if self.is_zero() {
+            let zero_poly = Polynomial::new(vec![zero]);
+            return (zero_poly.clone(), zero_poly);
+        }
+
+        let mut quotient = Polynomial::new(vec![zero; self.0.len() - divisor.0.len() + 1]);
+        let mut remainder: Polynomial<Scalar> = self;
+        let divisor_leading_inv = divisor.leading_coefficient().unwrap().invert().unwrap();
+        while !remainder.is_zero() && remainder.0.len() >= divisor.0.len() {
+            let cur_q_coeff = remainder.leading_coefficient().unwrap() * &divisor_leading_inv;
+            let cur_q_degree = remainder.0.len() - divisor.0.len();
+            quotient.0[cur_q_degree] = cur_q_coeff.clone();
+            for (i, div_coeff) in divisor.0.iter().enumerate() {
+                if cur_q_degree + i < remainder.0.len() {
+                    let old_value = remainder.0[cur_q_degree + i].clone();
+                    remainder.0[cur_q_degree + i] -= &(cur_q_coeff.clone() * div_coeff.clone());
+                }
+            }
+            remainder = remainder.trim();
+        }
+        (quotient, remainder)
+    }
+
+    // TODO: these functions aren't that useful. Can probably be replaced by their inner operations
     pub fn evaluate_polynomial_commitment(
         &self,
         tau_powers: &[G1Projective],
@@ -54,6 +65,13 @@ impl Polynomial<Scalar> {
         G1Projective::multi_exp(&tau_powers, &self.0)
     }
     
+    pub fn evaluate_polynomial_commitment_g2(
+        &self,
+        tau_powers: &[G2Projective],
+        // poly: &Polynomial<Scalar>
+    ) -> G2Projective {
+        G2Projective::multi_exp(&tau_powers, &self.0)
+    }
 
 }
 
@@ -115,12 +133,41 @@ impl<F: Add + Mul + Neg<Output = F> + FieldElementZero + FieldElementOne> Polyno
         self.0.last().clone()
     }
 
+    // Original lagrange interpolation with assumptions of the learning implementation of the circuit field
     pub fn lagrange_interpolation(
         points: &Vec<(CircuitFieldElement, CircuitFieldElement)>,
         field: CircuitField,
     ) -> Polynomial<CircuitFieldElement> {
         let zero = field.element(U512::ZERO);
         let one = field.element(U512::ONE);
+        let mut interpolation = Polynomial::new(vec![zero.clone()]);
+
+        for (i, (x_i, y_i)) in points.iter().enumerate() {
+            let mut numerator = Polynomial::new(vec![one.clone()]);
+            let mut denominator = one.clone();
+
+            for (j, (x_j, _)) in points.iter().enumerate() {
+                if x_i != x_j {
+                    numerator = numerator * Polynomial::new(vec![-x_j.clone(), one.clone()]);
+                    denominator = denominator * (x_i.clone() - x_j.clone());
+                }
+            }
+
+            let denominator_poly = Polynomial::new(vec![denominator]);
+            let lagrange_basis_poly = numerator / denominator_poly;
+
+            // Represent y as a polynomial to multiply with other values here
+            let y_polynomial = Polynomial::new(vec![y_i.clone()]);
+            interpolation = interpolation + (lagrange_basis_poly * y_polynomial);
+        }
+        interpolation
+    }
+
+    pub fn lagrange_interpolation_scalar(
+        points: &Vec<(Scalar, Scalar)>,
+    ) -> Polynomial<Scalar> {
+        let zero = Scalar::ZERO;
+        let one = Scalar::ONE;
         let mut interpolation = Polynomial::new(vec![zero.clone()]);
 
         for (i, (x_i, y_i)) in points.iter().enumerate() {
@@ -219,6 +266,31 @@ impl Div for Polynomial<CircuitFieldElement> {
     }
 }
 
+impl Div for Polynomial<Scalar> {
+    type Output = Self;
+    fn div(self, divisor: Self) -> Self::Output {
+        let zero = self.0[0].zero();
+        let mut quotient = Polynomial::new(vec![zero; self.0.len() - divisor.0.len() + 1]);
+        let mut remainder: Polynomial<Scalar> = self.clone();
+        // Can unwrap here because we know self is not zero.
+        let divisor_leading_inv = divisor.leading_coefficient().unwrap().invert().unwrap();
+        while !remainder.is_zero() && remainder.0.len() >= divisor.0.len() {
+            let cur_q_coeff = remainder.leading_coefficient().unwrap() * &divisor_leading_inv;
+            let cur_q_degree = remainder.0.len() - divisor.0.len();
+            quotient.0[cur_q_degree] = cur_q_coeff.clone();
+
+            for (i, div_coeff) in divisor.0.iter().enumerate() {
+                remainder.0[cur_q_degree + i] -= &(cur_q_coeff.clone() * div_coeff.clone());
+                // remainder.0[cur_q_degree + i] = remainder.clone().0.clone()[cur_q_degree.clone() + i.clone()] - (cur_q_coeff.clone() * div_coeff.clone());
+            }
+            while let Some(true) = remainder.0.last().map(|c| Field::is_zero(c).into()) {
+                remainder.0.pop();
+            }
+        }
+        quotient
+    }
+}
+
 impl Add for Polynomial<CircuitFieldElement> {
     type Output = Polynomial<CircuitFieldElement>;
 
@@ -235,9 +307,40 @@ impl Add for Polynomial<CircuitFieldElement> {
     }
 }
 
+impl Add for Polynomial<Scalar> {
+    type Output = Polynomial<Scalar>;
+
+    fn add(self, rhs: Polynomial<Scalar>) -> Polynomial<Scalar> {
+        let mut out = vec![];
+        let zero = self.0[0].zero();
+        for i in 0..(max(self.0.len(), rhs.0.len())) {
+            let left = self.0.get(i).unwrap_or(&zero);
+            let right = rhs.0.get(i).unwrap_or(&zero);
+
+            out.push(left + right);
+        }
+        Polynomial::new(out)
+    }
+}
+
 impl Sub for Polynomial<CircuitFieldElement> {
     type Output = Polynomial<CircuitFieldElement>;
     fn sub(self, rhs: Polynomial<CircuitFieldElement>) -> Polynomial<CircuitFieldElement> {
+        let mut out = vec![];
+        let zero = self.0[0].zero();
+        for i in 0..max(self.0.len(), rhs.0.len()) {
+            let left = self.0.get(i).unwrap_or(&zero);
+            let right = rhs.0.get(i).unwrap_or(&zero);
+
+            out.push(left.clone() - right.clone());
+        }
+        Polynomial::new(out)
+    }
+}
+
+impl Sub for Polynomial<Scalar> {
+    type Output = Polynomial<Scalar>;
+    fn sub(self, rhs: Polynomial<Scalar>) -> Polynomial<Scalar> {
         let mut out = vec![];
         let zero = self.0[0].zero();
         for i in 0..max(self.0.len(), rhs.0.len()) {
@@ -398,7 +501,6 @@ fn lagrange_inerpolation_2() {
 
 #[test]
 fn eval_g_3() {
-    env_logger::init();
     // 39 == x^3 -4x^2 +3x -1
     let evaluate_at = 5_u64;
     let evaluate_at_commitment = G1Projective::identity() * Scalar::from(5_u64);

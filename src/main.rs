@@ -5,21 +5,21 @@ pub mod qap;
 pub mod r1cs;
 mod groth16;
 
-use blstrs::Scalar;
+use blstrs::{pairing, G1Projective, G2Projective, Scalar};
+use group::{self, Curve, Group};
+
 use circuit_field::FieldElementZero;
 use crypto_bigint::U512;
+use itertools::izip;
 use groth16::Groth16;
 use group::ff::{Field, PrimeField};
+use rand::{thread_rng, Rng};
 
 use crate::{circuit::Node, circuit_field::{CircuitField, CircuitFieldElement}};
 use circuit::{Circuit, CircuitNoFieldInfo, Operation::*};
 use qap::QAP;
 
 fn main() {
-    // let field = CircuitField(U512::from_u32(13));
-    // let field_mod = U512::from_le_hex(Scalar::MODULUS);
-    // let field = CircuitField(field_mod);
-
     let w_0 = Scalar::from(1);
     let w_1 = Scalar::from(2);
 
@@ -27,12 +27,25 @@ fn main() {
         Node::constant(w_0.clone()),
         Node::constant(w_1.clone()),
         Node::operation(Multiply, 0, 1), 
-        Node::operation(Multiply, 2, 2),
     ];
 
-    // let circuit: Circuit<Scalar, Scalar> = Circuit::new(instructions, None);
-    // let circuit: Circuit<Scalar> = Circuit::new(instructions);
     let circuit: CircuitNoFieldInfo<Scalar> = CircuitNoFieldInfo::new(instructions);
+    let (_, r1cs_instance) = circuit.calculate_with_trace();
+
+    let rng = thread_rng();
+
+    let qap_instance = QAP::new_with_scalars(r1cs_instance.clone(), rng).unwrap();
+
+    let num_rows = r1cs_instance.clone().a.len();
+    let num_columns = r1cs_instance.a[0].len();
+
+    let groth16_params = Groth16::setup(qap_instance.clone(), num_rows, num_columns);
+
+    let proof = Groth16::prove(qap_instance, groth16_params.clone());
+
+    let public_input = vec![Scalar::from(1)];
+
+    let verification_result = Groth16::verify(public_input, proof, groth16_params);
 
     // let (_, r1cs) = circuit.calculate_with_trace();
 
@@ -582,4 +595,106 @@ fn qap_does_not_verify_false_proof() {
     let qap = QAP::new(r1cs, field.clone()).unwrap();
 
     assert_eq!(qap.verify(field), false);
+}
+
+#[test]
+// An intuition for validating a proof which is similar to the QAP's verification, but translated almost directly to the pairing-based equivalent
+fn qap_committed_polynomial_evaluation_proof() {
+    env_logger::init();
+
+    let w_0 = Scalar::from(1);
+    let w_1 = Scalar::from(2);
+
+    let instructions = vec![
+        Node::constant(w_0.clone()),
+        Node::constant(w_1.clone()),
+        Node::operation(Multiply, 0, 1), 
+    ];
+
+    let circuit: CircuitNoFieldInfo<Scalar> = CircuitNoFieldInfo::new(instructions);
+    let (_, r1cs_instance) = circuit.calculate_with_trace();
+
+    let rng = thread_rng();
+
+    let qap_instance = QAP::new_with_scalars(r1cs_instance.clone(), rng).unwrap();
+    let num_rows = r1cs_instance.clone().a.len();
+    let num_columns = r1cs_instance.a[0].len();
+
+    let m = num_rows;
+    let n = num_columns;
+
+    let crs = {
+        let tau_plain = 2;
+        let tau = Scalar::from(tau_plain);
+        let mut powers_of_tau = vec![];
+
+        // deg(T)−1
+        for j in 0..qap_instance.target_polynomial.0.len() - 1 {
+            let power_of_tau = Scalar::from(tau_plain.pow(j.try_into().unwrap()));
+            let val = G1Projective::generator() * power_of_tau;
+            powers_of_tau.push(val);
+        }
+
+        // upper right side
+        let mut upper_right_side = vec![];
+        for j in 0..n {
+            let a_tau = qap_instance.a[j].evaluate(tau);
+            let b_tau = qap_instance.b[j].evaluate(tau);
+            let c_tau = qap_instance.c[j].evaluate(tau);
+
+            let numerator = a_tau + b_tau + c_tau;
+
+            upper_right_side.push(G1Projective::generator() * numerator)
+        }
+
+        // lower left side
+        let mut lower_left_side = vec![];
+        for j in 1..m {
+            // Text says j + n... is that right? 
+            // Instead, we will just do j for now? 
+            let a_tau = qap_instance.a[j].evaluate(tau);
+            let b_tau = qap_instance.b[j].evaluate(tau);
+            let c_tau = qap_instance.c[j].evaluate(tau);
+
+            let numerator = a_tau + b_tau + c_tau;
+
+            lower_left_side.push(G1Projective::generator() * numerator);
+        }
+
+        // lower right side
+        let mut lower_right_side = vec![];
+        for i in 0..qap_instance.target_polynomial.0.len() - 2 {
+            let numerator = tau * Scalar::from(i as u64) * qap_instance.target_polynomial.evaluate(tau);
+            lower_right_side.push(G1Projective::generator() * numerator);
+        }
+
+        // G_2
+        let mut g_2_powers_of_tau = vec![];
+        // deg(T)−1
+        for j in 0..qap_instance.target_polynomial.0.len() - 1 {
+            let power_of_tau = Scalar::from(tau_plain.pow(j.try_into().unwrap()));
+            let val = G2Projective::generator() * power_of_tau;
+            g_2_powers_of_tau.push(val);
+        };
+        (powers_of_tau, g_2_powers_of_tau)
+    };
+
+    assert_eq!(num_rows, 1);
+    assert_eq!(num_columns, 4);
+    assert!(qap_instance.verify());
+
+    let (a, b, c) = {
+        let mut g_1_a = G1Projective::identity();
+        let mut g_2_b = G2Projective::identity();
+        let mut g_1_w = G1Projective::identity();    
+        for (a_poly, b_poly, c_poly) in izip!(qap_instance.a, qap_instance.b, qap_instance.c) {
+            g_1_a += a_poly.evaluate_polynomial_commitment(&crs.0);
+            g_2_b += b_poly.evaluate_polynomial_commitment_g2(&crs.1);
+            g_1_w += c_poly.evaluate_polynomial_commitment(&crs.0);
+        }
+        (g_1_a, g_2_b, g_1_w)
+    };
+
+    let verification_result = pairing(&a.to_affine(), &b.to_affine()) == pairing(&c.to_affine(), &G2Projective::generator().to_affine());
+    assert!(verification_result);
 }

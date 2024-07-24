@@ -9,6 +9,7 @@ edition = "2021"
 blstrs = "0.7.1"
 crypto-bigint = { git = "https://github.com/RustCrypto/crypto-bigint", default-features = true, features = ["alloc"]}
 group = "0.13.0"
+itertools = "0.13.0"
 log = "0.4.21"
 rand = { version = "0.8.5", optional = true }
 
