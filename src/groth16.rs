@@ -53,7 +53,7 @@ impl CRS {
     }
 }
 
-pub struct Groth16();
+pub struct Groth16;
 
 impl Groth16 {
     #[cfg(feature = "proving")]
@@ -91,14 +91,16 @@ impl Groth16 {
             let b_tau = qap.b[j].evaluate(tau);
             let c_tau = qap.c[j].evaluate(tau);
 
-            let numerator = (beta * a_tau) + (alpha * b_tau) + c_tau;
+            // let numerator = a_tau + b_tau + c_tau;
+            let numerator = a_tau + (alpha * b_tau) + c_tau;
+            // Eventually, work towards this V
+            // let numerator = (beta * a_tau) + (alpha * b_tau) + c_tau;
 
             let result = numerator * gamma.invert().unwrap();
-            upper_right_side.push(G1Projective::generator() * result)
+            upper_right_side.push(G1Projective::generator() * numerator)
         }
 
         // lower left side
-        // let mut lower_left_side = Scalar::ZERO;
         let mut lower_left_side = vec![];
         for j in 1..m {
             // Text says j + n... is that right? 
@@ -110,18 +112,22 @@ impl Groth16 {
             let b_tau = qap.b[j].evaluate(tau);
             let c_tau = qap.c[j].evaluate(tau);
 
-            let numerator = (beta * a_tau) + (alpha * b_tau) + c_tau;
+            // let numerator = a_tau + b_tau + c_tau;
+            let numerator = a_tau + (alpha * b_tau) + c_tau;
+            // Eventually, work towards this V
+            // let numerator = (beta * a_tau) + (alpha * b_tau) + c_tau;
 
             let result = numerator * delta.invert().unwrap();
-            lower_left_side.push(G1Projective::generator() * result);
+            lower_left_side.push(G1Projective::generator() * numerator);
         }
 
         // lower right side
         let mut lower_right_side = vec![];
         for i in 0..qap.target_polynomial.0.len() - 2 {
             let numerator = tau * Scalar::from(i as u64) * qap.target_polynomial.evaluate(tau);
+            // Do we need delta at this half-finished stage?
             let result  = numerator * delta.invert().unwrap();
-            lower_right_side.push(G1Projective::generator() * result);
+            lower_right_side.push(G1Projective::generator() * numerator);
         }
 
         // G_2
@@ -129,6 +135,7 @@ impl Groth16 {
         let g_2_gamma = G2Projective::generator() * gamma;
         let g_2_delta = G2Projective::generator() * delta;
         let mut g_2_powers_of_tau = vec![];
+        
         // deg(T )−1
         for j in 0..qap.target_polynomial.0.len() - 1 {
             let power_of_tau = Scalar::from(tau_plain.pow(j.try_into().unwrap()));
@@ -152,13 +159,17 @@ impl Groth16 {
         let mut g_2_b = G2Projective::identity();
         let mut g_1_w = G1Projective::identity();
 
-        for (a_poly, b_poly, c_poly) in izip!(qap_instance.a, qap_instance.b, qap_instance.c) {
-            g_1_a += a_poly.evaluate_polynomial_commitment(&crs.g_1_trapdoor_values.taus);
-            g_2_b += b_poly.evaluate_polynomial_commitment_g2(&crs.g_2_values.3);
-            g_1_w += c_poly.evaluate_polynomial_commitment(&crs.g_1_trapdoor_values.taus);
-        }
+        let (is_verified, h) = qap_instance.verify_with_data();
+        assert!(is_verified);
 
-        g_1_w += qap_instance.target_polynomial.evaluate_polynomial_commitment(&crs.g_1_trapdoor_values.taus);
+        for (a_poly, b_poly, c_poly) in izip!(qap_instance.a, qap_instance.b, qap_instance.c) {
+            g_1_a += a_poly.evaluate_polynomial_commitment(&crs.g_1_trapdoor_values.taus) + crs.g_1_trapdoor_values.alpha;
+            g_2_b += b_poly.evaluate_polynomial_commitment_g2(&crs.g_2_values.3);
+            // g_1_w += c_poly.evaluate_polynomial_commitment(&crs.g_1_trapdoor_values.taus) + crs.g_1_trapdoor_values.alpha;
+            g_1_w += c_poly.evaluate_polynomial_commitment(&crs.g_1_trapdoor_values.taus) + crs.g_1_trapdoor_values.alpha;
+        }
+        // Eventually, get to a point where you can add this back
+        // g_1_w += qap_instance.target_polynomial.evaluate_polynomial_commitment(&crs.g_1_trapdoor_values.taus);
         (g_1_a, g_2_b, g_1_w)
     }
 

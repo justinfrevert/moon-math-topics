@@ -179,8 +179,8 @@ impl QAP<Scalar> {
         Ok(qap)
     }
 
-    pub fn verify(&self) -> bool {
-        // let z = Polynomial::new(vec![field.element(U512::ZERO)]);
+    // verifies the QAP instance, and returns H for the prover
+    pub fn verify_with_data(&self) -> (bool, Polynomial<Scalar>) {
         let z = Polynomial::new(vec![Scalar::ZERO]);
 
         // Turn list of polynomials for a, b, and c into a single polynomial each
@@ -194,10 +194,11 @@ impl QAP<Scalar> {
             },
         );
 
-        let qap_evaluation = a * b - c;
+        let p_iw = a * b - c;
 
-        let (_, polynomial_remainder) = qap_evaluation.div_rem(self.target_polynomial.clone());
-        polynomial_remainder.is_zero()
+        let (h, polynomial_remainder) = p_iw.div_rem(self.target_polynomial.clone());
+
+        (polynomial_remainder.is_zero(), h)
     }
 }
 

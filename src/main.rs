@@ -42,11 +42,11 @@ fn main() {
     let groth16_params = Groth16::setup(qap_instance.clone(), num_rows, num_columns);
 
     let proof = Groth16::prove(qap_instance, groth16_params.clone());
-
     let public_input = vec![Scalar::from(1)];
 
     let verification_result = Groth16::verify(public_input, proof, groth16_params);
-
+    println!("Verification was succesful? {:?}", verification_result);
+    assert!(verification_result);
     // let (_, r1cs) = circuit.calculate_with_trace();
 
     // let qap = QAP::new(r1cs, field.clone()).unwrap();
@@ -624,7 +624,7 @@ fn qap_committed_polynomial_evaluation_proof() {
     let n = num_columns;
 
     let crs = {
-        let tau_plain = 2;
+        let tau_plain = 3;
         let tau = Scalar::from(tau_plain);
         let mut powers_of_tau = vec![];
 
@@ -643,7 +643,6 @@ fn qap_committed_polynomial_evaluation_proof() {
             let c_tau = qap_instance.c[j].evaluate(tau);
 
             let numerator = a_tau + b_tau + c_tau;
-
             upper_right_side.push(G1Projective::generator() * numerator)
         }
 
@@ -657,7 +656,7 @@ fn qap_committed_polynomial_evaluation_proof() {
             let c_tau = qap_instance.c[j].evaluate(tau);
 
             let numerator = a_tau + b_tau + c_tau;
-
+            // lower_left_side.push(G1Projective::generator() * numerator);
             lower_left_side.push(G1Projective::generator() * numerator);
         }
 
@@ -681,7 +680,6 @@ fn qap_committed_polynomial_evaluation_proof() {
 
     assert_eq!(num_rows, 1);
     assert_eq!(num_columns, 4);
-    assert!(qap_instance.verify());
 
     let (a, b, c) = {
         let mut g_1_a = G1Projective::identity();
@@ -696,5 +694,157 @@ fn qap_committed_polynomial_evaluation_proof() {
     };
 
     let verification_result = pairing(&a.to_affine(), &b.to_affine()) == pairing(&c.to_affine(), &G2Projective::generator().to_affine());
+    assert!(verification_result);
+}
+
+#[test]
+fn qap_committed_polynomial_evaluation_proof_alpha() {
+    env_logger::init();
+
+    let w_0 = Scalar::from(1);
+    let w_1 = Scalar::from(2);
+
+    let instructions = vec![
+        Node::constant(w_0.clone()),
+        Node::constant(w_1.clone()),
+        Node::operation(Multiply, 0, 1), 
+    ];
+
+    let circuit: CircuitNoFieldInfo<Scalar> = CircuitNoFieldInfo::new(instructions);
+    let (_, r1cs_instance) = circuit.calculate_with_trace();
+
+    let rng = thread_rng();
+
+    let prover_random_r_term = Scalar::from(6);
+    let prover_random_t_term = Scalar::from(7);
+
+    let qap_instance = QAP::new_with_scalars(r1cs_instance.clone(), rng).unwrap();
+    let num_rows = r1cs_instance.clone().a.len();
+    let num_columns = r1cs_instance.a[0].len();
+
+    let m = num_rows;
+    let n = num_columns;
+    let alpha = Scalar::from(7);
+    let beta = Scalar::from(8);
+    let gamma = Scalar::from(9);
+    let delta = Scalar::from(1);
+
+    let crs_trap_doors: ((G1Projective, G1Projective, G1Projective), (G2Projective, G2Projective, G2Projective)) = {
+        ((
+            G1Projective::generator() * alpha,
+            G1Projective::generator() * beta,
+            G1Projective::generator() * delta,
+        ),
+        (
+            G2Projective::generator() * beta,
+            G2Projective::generator() * gamma,
+            G2Projective::generator() * delta,
+        ))
+    };
+
+    let crs: (Vec<G1Projective>, Vec<G2Projective>, Vec<G1Projective>, Vec<G1Projective>) = {
+        let tau_plain = 3;
+        let tau = Scalar::from(tau_plain);
+        let mut powers_of_tau = vec![];
+
+        // deg(T)−1
+        for j in 0..qap_instance.target_polynomial.0.len() - 1 {
+            let power_of_tau = Scalar::from(tau_plain.pow(j.try_into().unwrap()));
+            let val = G1Projective::generator() * power_of_tau;
+            powers_of_tau.push(val);
+        }
+
+        // upper right side
+        let mut upper_right_side = vec![];
+        for j in 0..n {
+            let a_tau = qap_instance.a[j].evaluate(tau);
+            let b_tau = qap_instance.b[j].evaluate(tau);
+            let c_tau = qap_instance.c[j].evaluate(tau);
+
+            let numerator = a_tau + b_tau + c_tau;
+            // let result = numerator * gamma.invert().unwrap();
+            upper_right_side.push(G1Projective::generator() * numerator)
+        }
+
+        // lower left side
+        let mut lower_left_side = vec![];
+        for j in 1..m {
+            let a_tau = qap_instance.a[j].evaluate(tau);
+            let b_tau = qap_instance.b[j].evaluate(tau);
+            let c_tau = qap_instance.c[j].evaluate(tau);
+
+            let numerator = a_tau + b_tau + c_tau;
+            // let result = numerator * delta.invert().unwrap();
+            lower_left_side.push(G1Projective::generator() * numerator);
+        }
+
+        // lower right side
+        let mut lower_right_side = vec![];
+        for i in 0..qap_instance.target_polynomial.0.len() - 1 {
+            let numerator = tau * Scalar::from(i as u64) * qap_instance.target_polynomial.evaluate(tau);
+            lower_right_side.push(G1Projective::generator() * numerator);
+        }
+
+        // G_2
+        let mut g_2_powers_of_tau = vec![];
+        // deg(T)−1
+        for j in 0..qap_instance.target_polynomial.0.len() - 1 {
+            let power_of_tau = Scalar::from(tau_plain.pow(j.try_into().unwrap()));
+            let val = G2Projective::generator() * power_of_tau;
+            g_2_powers_of_tau.push(val);
+        };
+        (powers_of_tau, g_2_powers_of_tau, lower_right_side, lower_left_side)
+    };
+
+    assert_eq!(num_rows, 1);
+    assert_eq!(num_columns, 4);
+
+    let (is_verified, h) = qap_instance.verify_with_data();
+    assert!(is_verified);
+
+    let (crs_g1, crs_g2) = crs_trap_doors;
+    let (_, _, g1_delta) = crs_g1;
+    let (_, _, g2_delta) = crs_g2;
+
+    let (a, b_g_1, b, calculated_w) = {
+        let mut g_1_a = G1Projective::identity();
+        let mut g_1_b = G1Projective::identity();
+        let mut g_2_b = G2Projective::identity();
+        let mut g_1_w = G1Projective::identity();    
+
+        for (a_poly, b_poly, c_poly) in izip!(qap_instance.a, qap_instance.b, qap_instance.c) {
+            g_1_a += a_poly.evaluate_polynomial_commitment(&crs.0);
+            g_1_b += b_poly.evaluate_polynomial_commitment(&crs.0);
+            g_2_b += b_poly.evaluate_polynomial_commitment_g2(&crs.1);
+            g_1_w += c_poly.evaluate_polynomial_commitment(&crs.0);
+        }
+
+        // Scaling by prover-side random terms
+        // g_1_a += g1_delta * prover_random_r_term;
+        // g_1_b += g1_delta * prover_random_t_term;
+        // g_2_b += g2_delta * prover_random_t_term;
+
+        (g_1_a, g_1_b, g_2_b, g_1_w)
+    };
+
+    // Collect collection of w group elements into one 
+    // let w: G1Projective = crs.3.iter().sum();
+    // assert_eq!(w, calculated_w);
+
+    // Below works for now, but will need to incorporate A and B
+    let c = h.evaluate_polynomial_commitment(&crs.2) + calculated_w;
+    // let c = h.evaluate_polynomial_commitment(&crs.2) + w *- prover_random_r_term;
+
+    // let c = h.evaluate_polynomial_commitment(&crs.2) + w + (g1_delta * -(prover_random_r_term * prover_random_t_term));
+    // let c: G1Projective = h.evaluate_polynomial_commitment(&crs.2) + calculated_w + a + b_g_1 + (g1_delta * (-prover_random_r_term * prover_random_t_term));
+
+    let verification_result = 
+    pairing(&a.to_affine(), &b.to_affine()) == 
+    pairing(&c.to_affine(), &G2Projective::generator().to_affine());
+
+    // let verification_result = 
+    // pairing(&a.to_affine(), &b.to_affine()) == 
+    // pairing(&c.to_affine(), &g2_delta.to_affine());
+
     assert!(verification_result);
 }
